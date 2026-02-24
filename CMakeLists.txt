@@ -50,7 +50,25 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 # ─── Link ────────────────────────────────────────────────────────────────────
 target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
 
-if(WIN32)
+if(EMSCRIPTEN)
+    set(WEB_SHELL "${CMAKE_SOURCE_DIR}/shell.html" CACHE STRING "HTML shell template")
+    set(EM_FLAGS
+        "-s USE_GLFW=3"
+        "-s ASYNCIFY"
+        "-s TOTAL_MEMORY=67108864"
+        "-s ALLOW_MEMORY_GROWTH=1"
+        "--preload-file ${CMAKE_SOURCE_DIR}/assets@/assets"
+    )
+    if(EXISTS "${WEB_SHELL}")
+        list(APPEND EM_FLAGS "--shell-file ${WEB_SHELL}")
+    endif()
+    string(JOIN " " EM_FLAGS_STR ${EM_FLAGS})
+
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        SUFFIX ".html"
+        LINK_FLAGS "${EM_FLAGS_STR}"
+    )
+elseif(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE opengl32 gdi32 winmm)
 elseif(APPLE)
     target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -62,13 +80,15 @@ elseif(UNIX)
     target_link_libraries(${PROJECT_NAME} PRIVATE m pthread dl GL X11)
 endif()
 
-# ─── Copy assets to build dir ────────────────────────────────────────────────
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/assets
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
-    COMMENT "Copying assets to build directory"
-)
+# ─── Copy assets to build dir (native only) ──────────────────────────────────
+if(NOT EMSCRIPTEN)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/assets
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
+        COMMENT "Copying assets to build directory"
+    )
+endif()
 
 # ─── Warnings ────────────────────────────────────────────────────────────────
 target_compile_options(${PROJECT_NAME} PRIVATE

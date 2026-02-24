@@ -4,7 +4,7 @@
 #include "hot_reload_shader.h"
 
 struct DitherSettings {
-    bool  enabled    = false;
+    bool  enabled    = true;
     float strength   = 1.0f;
     float colorDepth = 4.0f;
 };

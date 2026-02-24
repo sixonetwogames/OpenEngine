@@ -8,15 +8,7 @@
     "width": 250.0,
     "depth": 250.0,
     "material": {
-      "albedo": [255, 255, 255, 255],
-      "metallic": 0.0,
-      "roughness": 1.0,
-      "ambient": 0.15,
-      "useNormalMap": true,
-      "textures": {
-        "diffuse": "assets/textures/landscape/grass_D.png",
-        "normal": "assets/textures/landscape/grass_N.png"
-      }
+      "name": "Grass"
     }
   },
   "geometry": [
@@ -25,56 +17,28 @@
       "position": [-16.0, 16.0, -16.0],
       "size": [16.0, 32.0, 16.0],
       "collision": true,
-      "wireColor": [0, 0, 139, 255],
-      "material": {
-        "albedo": [100, 140, 180, 255],
-        "metallic": 0.0,
-        "roughness": 0.55,
-        "ambient": 0.10,
-        "useNormalMap": false
-      }
+      "material": { "name": "Tower" }
     },
     {
       "type": "cube",
       "position": [16.0, 16.0, -16.0],
       "size": [16.0, 32.0, 16.0],
       "collision": true,
-      "wireColor": [0, 0, 139, 255],
-      "material": {
-        "albedo": [100, 140, 180, 255],
-        "metallic": 0.0,
-        "roughness": 0.55,
-        "ambient": 0.10,
-        "useNormalMap": false
-      }
+      "material": { "name": "Tower" }
     },
     {
       "type": "cube",
       "position": [-16.0, 16.0, 16.0],
       "size": [16.0, 32.0, 16.0],
       "collision": true,
-      "wireColor": [0, 0, 139, 255],
-      "material": {
-        "albedo": [100, 140, 180, 255],
-        "metallic": 0.0,
-        "roughness": 0.55,
-        "ambient": 0.10,
-        "useNormalMap": false
-      }
+      "material": { "name": "Tower" }
     },
     {
       "type": "cube",
       "position": [16.0, 16.0, 16.0],
       "size": [16.0, 32.0, 16.0],
       "collision": true,
-      "wireColor": [0, 0, 139, 255],
-      "material": {
-        "albedo": [100, 140, 180, 255],
-        "metallic": 0.0,
-        "roughness": 0.55,
-        "ambient": 0.10,
-        "useNormalMap": false
-      }
+      "material": { "name": "Tower", "roughness": 0.8 }
     }
   ]
 }

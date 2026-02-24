@@ -3,7 +3,6 @@
 in vec3 fragPosition;
 in vec2 fragTexCoord;
 in vec3 fragNormal;
-in mat3 fragTBN;
 
 uniform sampler2D texture0; // albedo
 uniform sampler2D texture1; // normal
@@ -13,20 +12,21 @@ uniform vec3  viewPos;
 uniform vec3  albedoColor;
 uniform float metallic;
 uniform float roughness;
-uniform float ambientStrength;
 uniform vec3  ambientColor;
 
 // Normal mapping
 uniform int   useNormalMap;
 uniform float normalStrength;
 
-// Post adjustments
+// Albedo adjustments
 uniform float brightness;
 uniform float contrast;
 
 // UV control
 uniform int   useWorldUVs;
 uniform float tiling;
+uniform float tileU;
+uniform float tileV;
 
 // Roughness map
 uniform int   useRoughnessMap;
@@ -36,8 +36,8 @@ uniform float fogNear;
 uniform float fogFar;
 
 // Lighting
-uniform vec3 lightDir;
-uniform vec3 lightColor;
+uniform vec3  lightDir;
+uniform vec3  lightColor;
 
 out vec4 finalColor;
 
@@ -68,9 +68,13 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
 void main() {
     // --- UV computation ---
     vec2 uv = (useWorldUVs > 0) ? fragPosition.xz * tiling : fragTexCoord * tiling;
+    uv *= vec2(tileU, tileV);
 
-    // --- Albedo ---
-    vec4 albedo = texture(texture0, uv) * vec4(albedoColor, 1.0);
+    // --- Albedo (with brightness/contrast on texture) ---
+    vec3 texColor = texture(texture0, uv).rgb;
+    texColor = (texColor - 0.5) * contrast + 0.5 + (brightness - 1.0);
+    texColor = max(texColor, vec3(0.0));
+    vec4 albedo = vec4(texColor * albedoColor, 1.0);
 
     // --- Roughness / Metallic ---
     float rough = roughness;
@@ -86,7 +90,24 @@ void main() {
     if (useNormalMap > 0) {
         vec3 normalMap = texture(texture1, uv).rgb * 2.0 - 1.0;
         normalMap.xy *= normalStrength;
-        N = normalize(fragTBN * normalMap);
+        mat3 TBN;
+        if (useWorldUVs > 0) {
+            vec3 geoN = normalize(fragNormal);
+            vec3 T = normalize(vec3(1.0, 0.0, 0.0) - geoN * dot(geoN, vec3(1.0, 0.0, 0.0)));
+            vec3 B = cross(geoN, T);
+            TBN = mat3(T, B, geoN);
+        } else {
+            // Derivative-based TBN — works reliably on any mesh
+            vec3 dPdx = dFdx(fragPosition);
+            vec3 dPdy = dFdy(fragPosition);
+            vec2 dUVdx = dFdx(uv);
+            vec2 dUVdy = dFdy(uv);
+            vec3 T = normalize(dPdx * dUVdy.y - dPdy * dUVdx.y);
+            vec3 B = normalize(dPdy * dUVdx.x - dPdx * dUVdy.x);
+            vec3 geoN = normalize(fragNormal);
+            TBN = mat3(T, B, geoN);
+        }
+        N = normalize(TBN * normalMap);
     } else {
         N = normalize(fragNormal);
     }
@@ -110,14 +131,13 @@ void main() {
 
     // --- Ambient / skylight ---
     float skyHemi = 0.5 + 0.5 * dot(N, vec3(0.0, 1.0, 0.0));
-    vec3 ambient  = ambientColor * ambientStrength * albedo.rgb * skyHemi;
+    vec3 ambient  = ambientColor * albedo.rgb * skyHemi;
 
     vec3 color = ambient + Lo;
 
-    // --- Brightness / Contrast ---
-    color = (color - 0.5) * contrast + 0.5;
-    color += brightness - 1.0;
-    color = max(color, 0.0);
+    // --- Tone mapping (ACES approximation) ---
+    color = color * (2.51 * color + 0.03) / (color * (2.43 * color + 0.59) + 0.14);
+    color = clamp(color, 0.0, 1.0);
 
     // --- Fog depth packing ---
     float z = gl_FragCoord.z * 2.0 - 1.0;

@@ -2,16 +2,41 @@
 #include "rlgl.h"
 #include <cmath>
 
-static Vector3 V3Lerp(Vector3 a, Vector3 b, float t) {
-    return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
+// ---------------------------------------------------------------------------
+// Internal state (file-scope, not exposed in header)
+// ---------------------------------------------------------------------------
+namespace {
+    Model  skyModel  = {};
+    Shader skyShader = {};
+
+    int timeLoc         = -1;
+    int viewPosLoc      = -1;
+    int sunDirLoc       = -1;
+    int sunColorLoc     = -1;
+    int sunIntensityLoc = -1;
+    int skyZenithLoc    = -1;
+    int skyHorizonLoc   = -1;
+    int skyGroundLoc    = -1;
+    int cloudOpacityLoc = -1;
+    int fogColorLoc_sky   = -1;
+    int fogAmountLoc_sky  = -1;
+    int fogHeightLoc_sky  = -1;
+    int fogNoiseScaleLoc_sky    = -1;
+    int fogNoiseStrengthLoc_sky = -1;
+    int fogWindOffsetLoc_sky    = -1;
+
+    SkyPreset presets[4] = {};
+
+    Vector3 V3Lerp(Vector3 a, Vector3 b, float t) {
+        return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};
+    }
+    float Clamp01(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
 }
 
-static float Clamp01(float x) { return x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x); }
-
 // ---------------------------------------------------------------------------
-// Presets — same as before
+// Presets
 // ---------------------------------------------------------------------------
-void World::InitDefaultPresets() {
+static void InitDefaultPresets() {
     presets[0] = { // Night
         .zenith = {0.07f, 0.09f, 0.3f}, .horizon = {0.21f, 0.24f, 0.62f},
         .ground = {0.01f, 0.01f, 0.03f}, .sunColor = {0.3f, 0.3f, 0.5f},
@@ -35,27 +60,18 @@ void World::InitDefaultPresets() {
 }
 
 // ---------------------------------------------------------------------------
-// Remap day progress so dawn/dusk transitions are shorter.
-// Sine-based: flattens near stable presets (night/day), steepens transitions.
+// Remap day progress — compress dawn/dusk transitions
 // ---------------------------------------------------------------------------
-float World::RemapDayProgress(float t) const {
-    // Amplitude controls compression — smaller dawnWidth = more compression
-    float avgWidth = (dayCycle.dawnWidth + dayCycle.duskWidth) * 0.5f;
-    float amp = (0.25f - Clamp01(avgWidth)) * 0.4f;  // 0 when width=0.25 (linear), ~0.08 when width=0.06
-
-    // sin(4πt) has zeros at 0, 0.25, 0.5, 0.75, 1.0
-    // Subtracting flattens the curve at those points (more time at stable presets)
-    // and steepens between them (faster transitions = shorter dawn/dusk)
+static float RemapDayProgress(float t) {
+    float avgWidth = (World::dawnWidth + World::duskWidth) * 0.5f;
+    float amp = (0.25f - Clamp01(avgWidth)) * 0.4f;
     float remapped = t - amp * sinf(4.0f * PI * t);
-
-    // Keep in 0-1 range
     if (remapped < 0.0f) remapped += 1.0f;
     if (remapped >= 1.0f) remapped -= 1.0f;
-
     return remapped;
 }
 
-SkyPreset World::BlendPresets(float t) const {
+static SkyPreset BlendPresets(float t) {
     float scaled = t * 4.0f;
     int idx0 = (int)scaled % 4;
     int idx1 = (idx0 + 1) % 4;
@@ -78,57 +94,86 @@ SkyPreset World::BlendPresets(float t) const {
 // ---------------------------------------------------------------------------
 // Compute sun/moon lighting + skylight
 // ---------------------------------------------------------------------------
-void World::ComputeLighting(float t) {
-    // Sun orbit: t=0.25 dawn (horizon east), t=0.5 noon, t=0.75 sunset
+static void ComputeLighting(float t) {
     float sunAngle = (t - 0.25f) * PI * 2.0f;
-    float sunElev = sinf(sunAngle);   // +1 at noon, -1 at midnight
+    float sunElev = sinf(sunAngle);
 
-    Vector3 sunDir = Vector3Normalize({
-        cosf(sunAngle),
-        -sinf(sunAngle),
-        -0.3f
-    });
-
-    // Moon is opposite the sun
+    Vector3 sunDir = Vector3Normalize({cosf(sunAngle), -sinf(sunAngle), -0.3f});
     Vector3 moonDir = {-sunDir.x, -sunDir.y, -sunDir.z};
 
-    // Sun intensity fades smoothly at horizon
-    float sunFade = Clamp01((sunElev - dayCycle.sunFadeEnd) /
-                            (dayCycle.sunFadeStart - dayCycle.sunFadeEnd + 0.001f));
-    sunFade = sunFade * sunFade; // ease
+    float sunFade = Clamp01((sunElev - World::sunFadeEnd) /
+                            (World::sunFadeStart - World::sunFadeEnd + 0.001f));
+    sunFade *= sunFade;
 
-    // Moon fades in when sun fades out
-    float moonElev = -sunElev;  // opposite of sun
-    float moonFade = Clamp01((moonElev - 0.0f) / 0.15f);
-    moonFade = moonFade * moonFade;
+    float moonFade = Clamp01(-sunElev / 0.15f);
+    moonFade *= moonFade;
 
-    // Pick dominant light
+    // Sun elevation drives intensity lerp (0 at horizon → 1 at zenith)
+    float dayFactor = Clamp01(sunElev / 0.5f);
+
     if (sunElev > 0.0f) {
-        lighting.lightDir       = sunDir;
-        lighting.lightColor     = currentSky.sunColor;
-        lighting.lightIntensity = currentSky.sunIntensity * sunFade;
+        World::lightDir       = sunDir;
+        World::lightColor     = World::currentSky.sunColor;
+        World::lightIntensity = World::currentSky.sunIntensity * sunFade *
+                                (World::nightSunIntensity + (World::sunPeakIntensity - World::nightSunIntensity) * dayFactor);
     } else {
-        lighting.lightDir       = moonDir;
-        lighting.lightColor     = dayCycle.moonColor;
-        lighting.lightIntensity = dayCycle.moonIntensity * moonFade;
+        World::lightDir       = moonDir;
+        World::lightColor     = World::moonColor;
+        World::lightIntensity = World::moonIntensity * moonFade * World::nightSunIntensity;
     }
 
-    // Skylight: sample between horizon and zenith
-    float h = dayCycle.skylightHeight;
-    Vector3 skyColor = V3Lerp(currentSky.horizon, currentSky.zenith, h);
-    lighting.skylightColor     = skyColor;
-    lighting.skylightIntensity = dayCycle.skylightIntensity;
+    float h = World::skylightHeight;
+    World::skylightColor     = V3Lerp(World::currentSky.horizon, World::currentSky.zenith, h);
+    World::skylightIntensity = World::nightSkylightIntensity +
+                               (World::skylightPeakIntensity - World::nightSkylightIntensity) * dayFactor;
 }
 
 // ---------------------------------------------------------------------------
-// Init / Unload
+// Fog color: base tinted by skylight
+// ---------------------------------------------------------------------------
+static void ComputeFogColor() {
+    const SkyPreset& sky = World::currentSky;
+    const Vector3& skylight = World::skylightColor;
+
+    // Start from stable base
+    Vector3 base = {
+        World::fogBaseColor.r / 255.0f,
+        World::fogBaseColor.g / 255.0f,
+        World::fogBaseColor.b / 255.0f
+    };
+
+    // Blend in sky ground hemisphere color
+    base = V3Lerp(base, sky.ground, World::fogGroundBlend);
+
+    // Tint by skylight
+    base.x += skylight.x * World::fogSkyTint;
+    base.y += skylight.y * World::fogSkyTint;
+    base.z += skylight.z * World::fogSkyTint;
+
+    // Day/night brightness: darker at night, lighter during day
+    float dayBright = 0.3f + 0.7f * sky.sunIntensity;
+    base.x *= dayBright;
+    base.y *= dayBright;
+    base.z *= dayBright;
+
+    World::fogColor = {
+        (unsigned char)(fminf(base.x * 255.0f, 255.0f)),
+        (unsigned char)(fminf(base.y * 255.0f, 255.0f)),
+        (unsigned char)(fminf(base.z * 255.0f, 255.0f)),
+        255
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Public API
 // ---------------------------------------------------------------------------
 void World::Init() {
     InitDefaultPresets();
+    dayProgress = startDayProgress;
 
-    Mesh mesh = GenMeshSphere(500.0f, 32, 32);
+    Mesh mesh = GenMeshSphere(SKY_SPHERE_RADIUS, SKY_SPHERE_RINGS, SKY_SPHERE_SLICES);
     skyModel  = LoadModelFromMesh(mesh);
-    skyShader = LoadShader("assets/shaders/sky.vs", "assets/shaders/sky.fs");
+    skyShader = LoadShader(SKY_VS_PATH, SKY_FS_PATH);
     skyModel.materials[0].shader = skyShader;
 
     timeLoc         = GetShaderLocation(skyShader, "time");
@@ -140,11 +185,12 @@ void World::Init() {
     skyHorizonLoc   = GetShaderLocation(skyShader, "skyHorizon");
     skyGroundLoc    = GetShaderLocation(skyShader, "skyGround");
     cloudOpacityLoc = GetShaderLocation(skyShader, "cloudOpacity");
-
-    // In World::Init(), after other GetShaderLocation calls:
     fogColorLoc_sky  = GetShaderLocation(skyShader, "fogColor");
     fogAmountLoc_sky = GetShaderLocation(skyShader, "fogAmount");
     fogHeightLoc_sky = GetShaderLocation(skyShader, "fogHeight");
+    fogNoiseScaleLoc_sky    = GetShaderLocation(skyShader, "fogNoiseScale");
+    fogNoiseStrengthLoc_sky = GetShaderLocation(skyShader, "fogNoiseStrength");
+    fogWindOffsetLoc_sky    = GetShaderLocation(skyShader, "fogWindOffset");
 }
 
 void World::Unload() {
@@ -152,29 +198,22 @@ void World::Unload() {
     UnloadModel(skyModel);
 }
 
-// ---------------------------------------------------------------------------
-// Update
-// ---------------------------------------------------------------------------
 void World::Update(Camera camera) {
     float dt = GetFrameTime();
     worldTime += dt * timeScale;
 
-    dayProgress += (dt * timeScale) / dayLength;
+    dayProgress += (dt * timeScale) / dayLengthSec;
     if (dayProgress >= 1.0f) dayProgress -= 1.0f;
     if (dayProgress < 0.0f)  dayProgress += 1.0f;
 
-    // Remap for compressed dawn/dusk, then blend sky presets
     float remapped = RemapDayProgress(dayProgress);
     currentSky = BlendPresets(remapped);
-
-    // Compute sun/moon/skylight from raw dayProgress (orbital, not remapped)
     ComputeLighting(dayProgress);
+    ComputeFogColor();
 
-    // Push sky shader uniforms (uses remapped sky colors but raw sun dir for disk position)
+    // Sky shader uniforms
     float sunAngle = (dayProgress - 0.25f) * PI * 2.0f;
-    Vector3 skyShaderSunDir = Vector3Normalize({
-        cosf(sunAngle), -sinf(sunAngle), -0.3f
-    });
+    Vector3 skyShaderSunDir = Vector3Normalize({cosf(sunAngle), -sinf(sunAngle), -0.3f});
 
     SetShaderValue(skyShader, timeLoc,         &worldTime,               SHADER_UNIFORM_FLOAT);
     SetShaderValue(skyShader, sunDirLoc,       &skyShaderSunDir,         SHADER_UNIFORM_VEC3);
@@ -188,14 +227,32 @@ void World::Update(Camera camera) {
     Vector3 pos = camera.position;
     SetShaderValue(skyShader, viewPosLoc, &pos, SHADER_UNIFORM_VEC3);
 
-    float fogH = 0.4f;
-    float fogCol[3] = { weather.fogColor.r/255.0f, weather.fogColor.g/255.0f, weather.fogColor.b/255.0f };
-    SetShaderValue(skyShader, fogHeightLoc_sky, &fogH,                SHADER_UNIFORM_FLOAT);
-    SetShaderValue(skyShader, fogColorLoc_sky,  fogCol,               SHADER_UNIFORM_VEC3);
-    SetShaderValue(skyShader, fogAmountLoc_sky, &weather.fogDensity,  SHADER_UNIFORM_FLOAT);
+    // Store camera state for post-process world reconstruction
+    cameraPos   = pos;
+    cameraFwd   = Vector3Normalize(Vector3Subtract(camera.target, camera.position));
+    cameraRight = Vector3Normalize(Vector3CrossProduct(cameraFwd, camera.up));
+    cameraUp    = Vector3CrossProduct(cameraRight, cameraFwd);
+    cameraFov   = camera.fovy;
+
+    // Fog → sky shader
+    float fogCol[3] = { fogColor.r/255.0f, fogColor.g/255.0f, fogColor.b/255.0f };
+    SetShaderValue(skyShader, fogHeightLoc_sky, &fogHeight,    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, fogColorLoc_sky,  fogCol,        SHADER_UNIFORM_VEC3);
+    SetShaderValue(skyShader, fogAmountLoc_sky, &fogSkyAmount, SHADER_UNIFORM_FLOAT);
+
+    // Fog noise → sky shader
+    SetShaderValue(skyShader, fogNoiseScaleLoc_sky,    &fogNoiseScale,    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, fogNoiseStrengthLoc_sky, &fogNoiseStrength, SHADER_UNIFORM_FLOAT);
+    float wLen = sqrtf(fogWindDir.x * fogWindDir.x + fogWindDir.y * fogWindDir.y);
+    float wN = (wLen > 0.001f) ? 1.0f / wLen : 0.0f;
+    float windOff[2] = {
+        fogWindDir.x * wN * fogWindSpeed * worldTime,
+        fogWindDir.y * wN * fogWindSpeed * worldTime
+    };
+    SetShaderValue(skyShader, fogWindOffsetLoc_sky, windOff, SHADER_UNIFORM_VEC2);
 }
 
-void World::DrawSky(Camera camera) const {
+void World::DrawSky(Camera camera) {
     rlDisableBackfaceCulling();
     rlDisableDepthMask();
         DrawModel(skyModel, camera.position, 1.0f, WHITE);
@@ -211,8 +268,4 @@ void World::SetDayProgress(float t) {
 
 void World::SetPreset(int index, const SkyPreset& preset) {
     if (index >= 0 && index < 4) presets[index] = preset;
-}
-
-void World::SetWeather(const WeatherState& w) {
-    weather = w;
 }

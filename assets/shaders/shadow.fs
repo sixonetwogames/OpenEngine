@@ -8,11 +8,7 @@ uniform vec3  color;
 out vec4 finalColor;
 
 void main() {
-    vec2 centered = fragUV * 2.0 - 1.0;
-    float dist = length(centered);
-
+    float dist  = length(fragUV * 2.0 - 1.0);
     float alpha = opacity * smoothstep(0.75, 0.15, dist);
-    if (alpha < 0.01) discard;
-
-    finalColor = vec4(color, alpha);
+    finalColor  = vec4(color, alpha);
 }

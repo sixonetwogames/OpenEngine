@@ -1,4 +1,5 @@
 #include "postprocess.h"
+#include "world.h"
 #include "rlgl.h"
 
 void PostProcess::CacheLocations(Shader s) {
@@ -12,24 +13,32 @@ void PostProcess::CacheLocations(Shader s) {
     ditherStrengthLoc   = GetShaderLocation(s, "ditherStrength");
     ditherColorDepthLoc = GetShaderLocation(s, "ditherColorDepth");
 
-    // Fog
     fogEnabledLoc    = GetShaderLocation(s, "fogEnabled");
     fogDensityLoc    = GetShaderLocation(s, "fogDensity");
     fogStartLoc      = GetShaderLocation(s, "fogStart");
     fogMaxDistLoc    = GetShaderLocation(s, "fogMaxDist");
     fogHeightFadeLoc = GetShaderLocation(s, "fogHeightFade");
+    fogZHeightLoc    = GetShaderLocation(s, "fogZHeight");
     fogDitherBlendLoc= GetShaderLocation(s, "fogDitherBlend");
     fogColorLoc      = GetShaderLocation(s, "fogColor");
     fogNearLoc       = GetShaderLocation(s, "fogNear");
     fogFarLoc        = GetShaderLocation(s, "fogFar");
     depthTexLoc      = GetShaderLocation(s, "depthTexture");
+    camPosLoc        = GetShaderLocation(s, "camPos");
+    camFwdLoc        = GetShaderLocation(s, "camFwd");
+    camRightLoc      = GetShaderLocation(s, "camRight");
+    camUpLoc         = GetShaderLocation(s, "camUp");
+    camFovLoc        = GetShaderLocation(s, "camFov");
+    fogNoiseScaleLoc    = GetShaderLocation(s, "fogNoiseScale");
+    fogNoiseStrengthLoc = GetShaderLocation(s, "fogNoiseStrength");
+    fogWindOffsetLoc    = GetShaderLocation(s, "fogWindOffset");
+    fogTimeLoc          = GetShaderLocation(s, "fogTime");
 }
 
 void PostProcess::Init(int w, int h, const char* vsPath, const char* fsPath) {
     width = w;
     height = h;
     target = LoadRenderTexture(w, h);
-
     hotReload.Init(vsPath, fsPath, [this](Shader s) { CacheLocations(s); });
 }
 
@@ -38,9 +47,7 @@ void PostProcess::Unload() {
     hotReload.Unload();
 }
 
-void PostProcess::CheckReload() {
-    hotReload.Poll();
-}
+void PostProcess::CheckReload() { hotReload.Poll(); }
 
 void PostProcess::Resize(int w, int h) {
     if (w == width && h == height) return;
@@ -65,9 +72,9 @@ void PostProcess::End() {
 
     // Barrel
     int be = barrel.enabled ? 1 : 0;
-    SetShaderValue(s, barrelEnabledLoc,  &be,              SHADER_UNIFORM_INT);
-    SetShaderValue(s, barrelStrengthLoc, &barrel.strength,  SHADER_UNIFORM_FLOAT);
-    SetShaderValue(s, barrelZoomLoc,     &barrel.zoom,      SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, barrelEnabledLoc,  &be,             SHADER_UNIFORM_INT);
+    SetShaderValue(s, barrelStrengthLoc, &barrel.strength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, barrelZoomLoc,     &barrel.zoom,     SHADER_UNIFORM_FLOAT);
 
     // Dither
     int de = dither.enabled ? 1 : 0;
@@ -75,18 +82,46 @@ void PostProcess::End() {
     SetShaderValue(s, ditherStrengthLoc,   &dither.strength,   SHADER_UNIFORM_FLOAT);
     SetShaderValue(s, ditherColorDepthLoc, &dither.colorDepth, SHADER_UNIFORM_FLOAT);
 
-    // Fog
-    int fe = fog.enabled ? 1 : 0;
-    SetShaderValue(s, fogEnabledLoc,     &fe,               SHADER_UNIFORM_INT);
-    SetShaderValue(s, fogDensityLoc,     &fog.density,      SHADER_UNIFORM_FLOAT);
-    SetShaderValue(s, fogStartLoc,       &fog.startDist,    SHADER_UNIFORM_FLOAT);
-    SetShaderValue(s, fogMaxDistLoc,     &fog.maxDist,      SHADER_UNIFORM_FLOAT);
-    SetShaderValue(s, fogHeightFadeLoc,  &fog.heightFade,   SHADER_UNIFORM_FLOAT);
-    SetShaderValue(s, fogDitherBlendLoc, &fog.ditherBlend,  SHADER_UNIFORM_FLOAT);
-    SetShaderValue(s, fogNearLoc,        &fog.nearPlane,    SHADER_UNIFORM_FLOAT);
-    SetShaderValue(s, fogFarLoc,         &fog.farPlane,     SHADER_UNIFORM_FLOAT);
+    // Fog — reads from World namespace (single source of truth)
+    int fe = World::fogEnabled ? 1 : 0;
+    SetShaderValue(s, fogEnabledLoc,     &fe,                    SHADER_UNIFORM_INT);
+    SetShaderValue(s, fogDensityLoc,     &World::fogDensity,     SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogStartLoc,       &World::fogStart,       SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogMaxDistLoc,     &World::fogMaxDist,     SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogHeightFadeLoc,  &World::fogHeightFade,  SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogZHeightLoc,     &World::fogZHeight,     SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogDitherBlendLoc, &World::fogDitherBlend, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogNearLoc,        &World::fogNear,        SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogFarLoc,         &World::fogFar,         SHADER_UNIFORM_FLOAT);
 
-    float fc[3] = { fog.color.r / 255.0f, fog.color.g / 255.0f, fog.color.b / 255.0f };
+    // Camera vectors for world reconstruction
+    SetShaderValue(s, camPosLoc,   &World::cameraPos,   SHADER_UNIFORM_VEC3);
+    SetShaderValue(s, camFwdLoc,   &World::cameraFwd,   SHADER_UNIFORM_VEC3);
+    SetShaderValue(s, camRightLoc, &World::cameraRight,  SHADER_UNIFORM_VEC3);
+    SetShaderValue(s, camUpLoc,    &World::cameraUp,     SHADER_UNIFORM_VEC3);
+    float fovRad = World::cameraFov * DEG2RAD;
+    SetShaderValue(s, camFovLoc,   &fovRad,              SHADER_UNIFORM_FLOAT);
+
+    // Fog noise
+    SetShaderValue(s, fogNoiseScaleLoc,    &World::fogNoiseScale,    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogNoiseStrengthLoc, &World::fogNoiseStrength, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, fogTimeLoc,          &World::worldTime,        SHADER_UNIFORM_FLOAT);
+
+    // Wind offset: normalized dir * speed * time
+    float wLen = sqrtf(World::fogWindDir.x * World::fogWindDir.x +
+                       World::fogWindDir.y * World::fogWindDir.y);
+    float wNorm = (wLen > 0.001f) ? 1.0f / wLen : 0.0f;
+    float windOff[2] = {
+        World::fogWindDir.x * wNorm * World::fogWindSpeed * World::worldTime,
+        World::fogWindDir.y * wNorm * World::fogWindSpeed * World::worldTime
+    };
+    SetShaderValue(s, fogWindOffsetLoc, windOff, SHADER_UNIFORM_VEC2);
+
+    float fc[3] = {
+        World::fogColor.r / 255.0f,
+        World::fogColor.g / 255.0f,
+        World::fogColor.b / 255.0f
+    };
     SetShaderValue(s, fogColorLoc, fc, SHADER_UNIFORM_VEC3);
 
     // Bind depth texture to sampler unit 1

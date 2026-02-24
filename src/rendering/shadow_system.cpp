@@ -12,7 +12,6 @@ void ShadowSystem::CacheLocations(Shader s) {
 void ShadowSystem::Init(const char* vsPath, const char* fsPath) {
     Mesh mesh = GenMeshPlane(1.0f, 1.0f, 1, 1);
     quadModel = LoadModelFromMesh(mesh);
-
     hotReload.Init(vsPath, fsPath, [this](Shader s) { CacheLocations(s); });
 }
 
@@ -21,38 +20,36 @@ void ShadowSystem::Unload() {
     hotReload.Unload();
 }
 
-void ShadowSystem::CheckReload() {
-    hotReload.Poll();
-}
+void ShadowSystem::CheckReload() { hotReload.Poll(); }
 
 void ShadowSystem::Draw(const std::vector<ShadowCaster>& casters) const {
-    if (!settings.enabled) return;
+    if (!World::shadowEnabled) return;
 
     Shader s = hotReload.Get();
     float sunElev = -sunDir.y;
     if (sunElev < 0.01f) return;
 
     float sunFade = fminf(sunElev / 0.25f, 1.0f);
-    float op = settings.opacity * sunFade;
+    float op = World::shadowOpacity * sunFade;
 
-    SetShaderValue(s, colorLoc,   &settings.color, SHADER_UNIFORM_VEC3);
-    SetShaderValue(s, opacityLoc, &op,             SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, colorLoc,   &World::shadowColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(s, opacityLoc, &op,                 SHADER_UNIFORM_FLOAT);
 
-    // Enable alpha blending for smooth shadow edges
+    // Alpha blend shadows, mask alpha writes to preserve PBR depth encoding
     rlEnableColorBlend();
-    rlSetBlendMode(RL_BLEND_ALPHA);
+    rlSetBlendFactors(0x0302, 0x0303, 0x8006); // GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_FUNC_ADD
+    rlSetBlendMode(BLEND_CUSTOM);
+    rlColorMask(true, true, true, false);
     rlDisableDepthMask();
 
     float hLen = sqrtf(sunDir.x * sunDir.x + sunDir.z * sunDir.z);
     float hx = (hLen > 0.001f) ? sunDir.x / hLen : 0.0f;
     float hz = (hLen > 0.001f) ? sunDir.z / hLen : 0.0f;
 
-    float offsetScale = settings.sunOffset * (1.0f / fmaxf(sunElev, 0.1f));
-    offsetScale = fminf(offsetScale, settings.sunOffset * 8.0f);
+    float offsetScale = World::shadowSunOffset * (1.0f / fmaxf(sunElev, 0.1f));
+    offsetScale = fminf(offsetScale, World::shadowSunOffset * 8.0f);
 
-    // Stretch along sun direction when low — 1.0 at noon, up to maxStretch at horizon
-    float stretch = 1.0f + (1.0f - fminf(sunElev / 0.5f, 1.0f)) * (settings.maxStretch - 1.0f);
-
+    float stretch = 1.0f + (1.0f - fminf(sunElev / 0.5f, 1.0f)) * (World::shadowMaxStretch - 1.0f);
     constexpr float pad = 1.5f;
 
     for (const auto& c : casters) {
@@ -65,12 +62,9 @@ void ShadowSystem::Draw(const std::vector<ShadowCaster>& casters) const {
             c.position.z + hz * offAmount,
         };
 
-        // Base size from caster footprint
-        float sx = c.size.x * settings.sizeScale * pad;
-        float sz = c.size.z * settings.sizeScale * pad;
+        float sx = c.size.x * World::shadowSizeScale * pad;
+        float sz = c.size.z * World::shadowSizeScale * pad;
 
-        // Stretch along sun horizontal direction
-        // hx,hz is unit vector — add stretch component to each axis proportionally
         Vector3 scale = {
             sx + fabsf(hx) * sx * (stretch - 1.0f),
             1.0f,
@@ -81,4 +75,7 @@ void ShadowSystem::Draw(const std::vector<ShadowCaster>& casters) const {
     }
 
     rlEnableDepthMask();
+    rlColorMask(true, true, true, true);
+    rlSetBlendMode(BLEND_ALPHA);
+    rlDisableColorBlend();
 }

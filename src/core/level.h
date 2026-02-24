@@ -15,11 +15,19 @@ struct LevelDef {
     struct Fog    { float near = 0.1f, far = 50.0f; };
 
     struct MatDef {
+        std::string preset;                        // e.g. "Grass" — resolved at load
         Color       albedo      = WHITE;
         float       metallic    = 0.0f;
         float       roughness   = 1.0f;
-        float       ambient     = 0.15f;
         bool        useNormalMap = true;
+        float       normalStrength = 1.0f;
+        float       brightness     = 1.0f;
+        float       contrast       = 1.0f;
+        bool        useWorldUVs    = true;
+        float       tiling         = 1.0f;
+        float       tileU          = 1.0f;
+        float       tileV          = 1.0f;
+        bool        useRoughnessMap = false;
         std::string diffuseTex;
         std::string normalTex;
     };
@@ -66,7 +74,7 @@ public:
               Vector3 mapOffset        = {0, 0, 0});
     void Unload();
 
-    void UpdateLighting(const LightingState& light, Vector3 camPos);
+    void UpdateLighting(Vector3 camPos);
     void Draw() const;
 
     MaterialInstance& GetPBR()     { return pbr; }
@@ -79,20 +87,22 @@ private:
     Model          floorModel{};
     MaterialParams floorParams{};
 
-    std::vector<LevelCube> cubes;
+    std::vector<LevelCube>    cubes;
+    std::vector<ShadowCaster> cachedCasters;   // rebuilt only on geometry change
+    bool                      castersDirty = true;
 
     Image   mapImage{};
     bool    hasMap = false;
     Vector3 offset{};
 
+    Texture2D floorDiffuse{};
+    Texture2D floorNormal{};
+
     void SpawnGeometry(CollisionSystem& collision, const LevelDef& def);
     void ReapplyShader();
+    void RebuildCasters();
 
     static Model MakePBRCube(const Vector3& size);
     static Model MakePBRPlane(float width, float depth);
-
     static MaterialParams BuildParams(const LevelDef::MatDef& m);
-
-    Texture2D grassDiffuse{};
-    Texture2D grassNormal{};
 };

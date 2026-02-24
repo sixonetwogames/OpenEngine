@@ -13,9 +13,13 @@ uniform float cloudOpacity;
 uniform float time;
 
 uniform vec3  fogColor;
-uniform float fogAmount;    // 0 = no fog, 1 = full wall at horizon
-uniform float fogHeight;    // how high fog reaches (0.0-1.0, fraction of sky)
+uniform float fogAmount;
+uniform float fogHeight;
 
+// Fog noise
+uniform float fogNoiseScale;
+uniform float fogNoiseStrength;
+uniform vec2  fogWindOffset;
 
 out vec4 finalColor;
 
@@ -131,13 +135,15 @@ void main()
         sky = mix(skyHorizon, skyGround, min(-dir.y * 5.0, 1.0));
     }
 
-    // Fog: full at horizon, fades with height
-    float fogMask = 1.0 - smoothstep(0.0, fogHeight, h);
-    sky = mix(sky, fogColor, fogMask * fogAmount);
+    // Fog: flat band based on view direction elevation
+    if (fogAmount > 0.0)
+    {
+        float normalizedH = dir.y / max(fogHeight, 0.01);
+        float fogMask = 1.0 - smoothstep(0.0, 1.0, max(normalizedH, 0.0));
 
-    // Below horizon: also fogged
-    if (dir.y < 0.0) {
-        sky = mix(sky, fogColor, fogAmount);
+        if (dir.y < 0.0) fogMask = 1.0;
+
+        sky = mix(sky, fogColor, fogMask * fogAmount);
     }
 
     finalColor = vec4(sky, 0.0);  // alpha 0 = sky pixel

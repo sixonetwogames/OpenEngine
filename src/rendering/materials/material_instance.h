@@ -13,13 +13,14 @@ struct MaterialParams {
     Color   albedo          = WHITE;       // → albedoColor (vec3)
     float   metallic        = 0.0f;        // → metallic
     float   roughness       = 0.5f;        // → roughness
-    float   ambient         = 0.1f;        // → ambientStrength
     bool    useNormalMap     = true;        // → useNormalMap (int)
     float   normalStrength   = 1.0f;       // → normalStrength
     float   brightness       = 1.0f;       // → brightness
     float   contrast         = 1.0f;       // → contrast
     bool    useWorldUVs      = true;       // → useWorldUVs (int)
-    float   tiling           = 1.0f;       // → tiling
+    float   tiling           = 1.0f;       // → tiling (base multiplier)
+    float   tileU            = 1.0f;       // → tileU (additional U scale)
+    float   tileV            = 1.0f;       // → tileV (additional V scale)
     bool    useRoughnessMap  = false;      // → useRoughnessMap (int)
 };
 
@@ -51,7 +52,6 @@ class MaterialInstance {
     int locAlbedoColor     = -1;
     int locMetallic        = -1;
     int locRoughness       = -1;
-    int locAmbientStrength = -1;
     int locAmbientColor    = -1;
     int locUseNormalMap    = -1;
     int locNormalStrength  = -1;
@@ -59,6 +59,8 @@ class MaterialInstance {
     int locContrast        = -1;
     int locUseWorldUVs     = -1;
     int locTiling          = -1;
+    int locTileU           = -1;
+    int locTileV           = -1;
     int locUseRoughnessMap = -1;
     int locViewPos         = -1;
     int locLightDir        = -1;
@@ -72,7 +74,6 @@ class MaterialInstance {
         locAlbedoColor     = GetShaderLocation(shader, "albedoColor");
         locMetallic        = GetShaderLocation(shader, "metallic");
         locRoughness       = GetShaderLocation(shader, "roughness");
-        locAmbientStrength = GetShaderLocation(shader, "ambientStrength");
         locAmbientColor    = GetShaderLocation(shader, "ambientColor");
         locUseNormalMap    = GetShaderLocation(shader, "useNormalMap");
         locNormalStrength  = GetShaderLocation(shader, "normalStrength");
@@ -80,6 +81,8 @@ class MaterialInstance {
         locContrast        = GetShaderLocation(shader, "contrast");
         locUseWorldUVs     = GetShaderLocation(shader, "useWorldUVs");
         locTiling          = GetShaderLocation(shader, "tiling");
+        locTileU           = GetShaderLocation(shader, "tileU");
+        locTileV           = GetShaderLocation(shader, "tileV");
         locUseRoughnessMap = GetShaderLocation(shader, "useRoughnessMap");
         locViewPos         = GetShaderLocation(shader, "viewPos");
         locLightDir        = GetShaderLocation(shader, "lightDir");
@@ -87,8 +90,8 @@ class MaterialInstance {
         locFogNear         = GetShaderLocation(shader, "fogNear");
         locFogFar          = GetShaderLocation(shader, "fogFar");
 
-        TraceLog(LOG_INFO, "MAT LOCS: albedo=%d metal=%d rough=%d ambStr=%d ambCol=%d norm=%d light=%d lightCol=%d fog=%d/%d",
-        locAlbedoColor, locMetallic, locRoughness, locAmbientStrength, locAmbientColor,
+        TraceLog(LOG_INFO, "MAT LOCS: albedo=%d metal=%d rough=%d ambCol=%d norm=%d light=%d lightCol=%d fog=%d/%d",
+        locAlbedoColor, locMetallic, locRoughness, locAmbientColor,
         locUseNormalMap, locLightDir, locLightColor, locFogNear, locFogFar);
     }
 
@@ -159,13 +162,14 @@ public:
         SetLoc(shader, locAlbedoColor,     albedo,              SHADER_UNIFORM_VEC3);
         SetLoc(shader, locMetallic,        &p.metallic,         SHADER_UNIFORM_FLOAT);
         SetLoc(shader, locRoughness,       &p.roughness,        SHADER_UNIFORM_FLOAT);
-        SetLoc(shader, locAmbientStrength, &p.ambient,          SHADER_UNIFORM_FLOAT);
         SetLoc(shader, locUseNormalMap,    &useNorm,            SHADER_UNIFORM_INT);
         SetLoc(shader, locNormalStrength,  &p.normalStrength,   SHADER_UNIFORM_FLOAT);
         SetLoc(shader, locBrightness,      &p.brightness,       SHADER_UNIFORM_FLOAT);
         SetLoc(shader, locContrast,        &p.contrast,         SHADER_UNIFORM_FLOAT);
         SetLoc(shader, locUseWorldUVs,     &useWorldUV,         SHADER_UNIFORM_INT);
         SetLoc(shader, locTiling,          &p.tiling,           SHADER_UNIFORM_FLOAT);
+        SetLoc(shader, locTileU,           &p.tileU,            SHADER_UNIFORM_FLOAT);
+        SetLoc(shader, locTileV,           &p.tileV,            SHADER_UNIFORM_FLOAT);
         SetLoc(shader, locUseRoughnessMap, &useRoughMap,        SHADER_UNIFORM_INT);
     }
 

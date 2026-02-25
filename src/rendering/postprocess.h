@@ -4,9 +4,9 @@
 #include "hot_reload_shader.h"
 
 struct DitherSettings {
-    bool  enabled    = false;
-    float strength   = 1.0f;
-    float colorDepth = 4.0f;
+    bool  enabled    = true;
+    float strength   = 0.3f;
+    float colorDepth = 8.0f;
 };
 
 struct BarrelSettings {

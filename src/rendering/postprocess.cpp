@@ -3,6 +3,26 @@
 #include "world.h"
 #include "rlgl.h"
 
+static RenderTexture2D LoadRenderTextureFloat(int w, int h) {
+    RenderTexture2D rt = { 0 };
+    rt.id = rlLoadFramebuffer();
+    if (rt.id > 0) {
+        rlEnableFramebuffer(rt.id);
+        rt.texture.id     = rlLoadTexture(NULL, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16, 1);
+        rt.texture.width  = w;
+        rt.texture.height = h;
+        rt.texture.format = RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16;
+        rt.texture.mipmaps = 1;
+        rt.depth.id     = rlLoadTextureDepth(w, h, true);
+        rt.depth.width  = w;
+        rt.depth.height = h;
+        rlFramebufferAttach(rt.id, rt.texture.id, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
+        rlFramebufferAttach(rt.id, rt.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_RENDERBUFFER, 0);
+        rlDisableFramebuffer();
+    }
+    return rt;
+}
+
 void PostProcess::CacheLocations(Shader s) {
     s.locs[SHADER_LOC_MATRIX_MVP] = GetShaderLocation(s, "mvp");
 
@@ -45,7 +65,7 @@ void PostProcess::Init(int w, int h) {
 void PostProcess::Init(int w, int h, const char* vsPath, const char* fsPath) {
     width = w;
     height = h;
-    target = LoadRenderTexture(w, h);
+    target = LoadRenderTextureFloat(w, h);
     hotReload.Init(vsPath, fsPath, [this](Shader s) { CacheLocations(s); });
 }
 
@@ -61,7 +81,7 @@ void PostProcess::Resize(int w, int h) {
     UnloadRenderTexture(target);
     width = w;
     height = h;
-    target = LoadRenderTexture(w, h);
+    target = LoadRenderTextureFloat(w, h);
 }
 
 void PostProcess::Begin() {

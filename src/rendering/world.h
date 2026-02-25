@@ -23,25 +23,25 @@ namespace World {
     // Fog (unified — feeds both post-process AND sky shader)
     // -----------------------------------------------------------------------
     inline bool          fogEnabled     = true;
-    inline float         fogDensity     = 0.003f;  // exponential density for post-process
+    inline float         fogDensity     = 0.07f;  // exponential density for post-process
     inline float         fogSkyAmount   = 0.95f;    // linear blend (0-1) for sky shader fog band
-    inline float         fogStart       = 20.0f;   // fog-free zone (meters)
-    inline float         fogMaxDist     = 5000.0f;  // fully opaque beyond this
-    inline float         fogHeightFade  = 15.0f;    // fade range above fogZHeight (meters)
-    inline float         fogZHeight     = 50.0f;     // world Y below which fog is full
+    inline float         fogStart       = 0.0f;   // fog-free zone (meters)
+    inline float         fogMaxDist     = 50.0f;  // fully opaque beyond this
+    inline float         fogHeightFade  = 35.0f;    // fade range above fogZHeight (meters)
+    inline float         fogZHeight     = 5.0f;     // world Y below which fog is full
     inline float         fogDitherBlend = 0.0f;     // bayer dither at edges (0-1)
-    inline float         fogGroundBlend = 0.8f;     // how much sky ground color tints fog
+    inline float         fogGroundBlend = 1.0f;     // how much sky ground color tints fog
     inline float         fogNear        = 0.1f;     // camera near plane
-    inline float         fogFar         = 5000.0f;  // camera far plane
-    inline float         fogHeight      = 0.4f;     // sky shader fog height band
+    inline float         fogFar         = 500.0f;  // camera far plane
+    inline float         fogHeight      = 0.6f;     // sky shader fog height band
     inline Color         fogColor       = {140, 142, 148, 255};
     inline Color         fogBaseColor   = {140, 142, 148, 255};
     inline float         fogSkyTint     = 0.55f;
 
     // Fog noise — procedural wisps
     inline float         fogNoiseScale    = 0.02f;  // world-space frequency of noise
-    inline float         fogNoiseStrength = 0.6f;    // 0 = solid fog, 1 = fully broken up
-    inline float         fogWindSpeed     = 1.0f;    // world units/sec noise scrolls
+    inline float         fogNoiseStrength = 0.2f;    // 0 = solid fog, 1 = fully broken up
+    inline float         fogWindSpeed     = 0.2f;    // world units/sec noise scrolls
     inline Vector2       fogWindDir       = {1.0f, 0.3f}; // xz direction (auto-normalized)
 
     // -----------------------------------------------------------------------
@@ -58,8 +58,8 @@ namespace World {
     // Day cycle
     // -----------------------------------------------------------------------
     inline float         dayLengthSec     = 600.0f;
-    inline float         timeScale        = 13.0f;
-    inline float         startDayProgress = 0.0f;
+    inline float         timeScale        = 5.0f;
+    inline float         startDayProgress = 0.1f;
 
     inline float         dawnWidth        = 0.1f;
     inline float         duskWidth        = 0.1f;

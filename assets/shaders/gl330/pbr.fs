@@ -116,7 +116,7 @@ void main() {
     vec3 V  = normalize(viewPos - fragPosition);
     vec3 F0 = mix(vec3(0.04), albedo.rgb, metal);
 
-    vec3 L = normalize(-lightDir);
+    vec3 L = normalize(lightDir);
     vec3 H = normalize(V + L);
 
     float NDF = DistributionGGX(N, H, rough);

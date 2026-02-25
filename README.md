@@ -25,5 +25,4 @@ Github Pages: https://sixonetwogames.github.io/OpenEngine/
 
 Do what you want with this!
 
-<img width="1911" height="996" alt="image" src="https://github.com/user-attachments/assets/76cb4cac-e68c-4929-b041-99f67f32a2bd" />
-
+<img width="1913" height="1070" alt="image" src="https://github.com/user-attachments/assets/404ed608-258f-4b2f-b206-85413ddb5447" />

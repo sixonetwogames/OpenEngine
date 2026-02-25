@@ -8,7 +8,9 @@ Lightweight 3d game engine
 
 Dynamic sky + weather system
 
+Automated material/shader pipeline
 
+Builds for PC or Web
 
 ### Controls
 

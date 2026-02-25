@@ -11,8 +11,8 @@ struct ShadowCaster {
 
 class ShadowSystem {
 public:
-    void Init(const char* vsPath = World::SHADOW_VS_PATH,
-              const char* fsPath = World::SHADOW_FS_PATH);
+    void Init();  // platform-aware (picks gl330 or es100)
+    void Init(const char* vsPath, const char* fsPath);  // explicit paths
     void Unload();
     void CheckReload();
 

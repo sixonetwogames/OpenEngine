@@ -1,6 +1,7 @@
 #pragma once
 #include "raylib.h"
 #include "raymath.h"
+#include "shader_utils.h"
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -112,6 +113,16 @@ public:
         storedVsPath = vsPath ? vsPath : "";
         storedFsPath = fsPath ? fsPath : "";
         shader = ::LoadShader(vsPath, fsPath);
+        ownsShader = true;
+        CacheLocations();
+    }
+
+    // Platform-aware: auto-selects gl330/ or es100/ by shader name
+    void InitPlatform(const char* name) {
+        std::string base = GetShaderPath();
+        storedVsPath = base + name + ".vs";
+        storedFsPath = base + name + ".fs";
+        shader = ::LoadShader(storedVsPath.c_str(), storedFsPath.c_str());
         ownsShader = true;
         CacheLocations();
     }

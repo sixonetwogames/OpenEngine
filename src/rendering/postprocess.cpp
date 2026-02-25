@@ -1,4 +1,5 @@
 #include "postprocess.h"
+#include "shader_utils.h"
 #include "world.h"
 #include "rlgl.h"
 
@@ -33,6 +34,12 @@ void PostProcess::CacheLocations(Shader s) {
     fogNoiseStrengthLoc = GetShaderLocation(s, "fogNoiseStrength");
     fogWindOffsetLoc    = GetShaderLocation(s, "fogWindOffset");
     fogTimeLoc          = GetShaderLocation(s, "fogTime");
+}
+
+void PostProcess::Init(int w, int h) {
+    std::string vs = std::string(GetShaderPath()) + "postprocess.vs";
+    std::string fs = std::string(GetShaderPath()) + "postprocess.fs";
+    Init(w, h, vs.c_str(), fs.c_str());
 }
 
 void PostProcess::Init(int w, int h, const char* vsPath, const char* fsPath) {

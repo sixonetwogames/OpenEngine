@@ -1,4 +1,5 @@
 #include "shadow_system.h"
+#include "shader_utils.h"
 #include "rlgl.h"
 #include <cmath>
 
@@ -7,6 +8,12 @@ void ShadowSystem::CacheLocations(Shader s) {
     opacityLoc = GetShaderLocation(s, "opacity");
     colorLoc   = GetShaderLocation(s, "color");
     quadModel.materials[0].shader = s;
+}
+
+void ShadowSystem::Init() {
+    std::string vs = std::string(GetShaderPath()) + "shadow.vs";
+    std::string fs = std::string(GetShaderPath()) + "shadow.fs";
+    Init(vs.c_str(), fs.c_str());
 }
 
 void ShadowSystem::Init(const char* vsPath, const char* fsPath) {

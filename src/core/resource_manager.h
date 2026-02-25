@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <functional>
+#include "shader_utils.h"
 
 // ─── ResourceManager ────────────────────────────────────────────────────────
 // Centralized load-once store for shaders, textures, models, and materials.
@@ -24,11 +25,12 @@ public:
 
     // ── Textures ─────────────────────────────────────────────────────────
 
-    Texture2D LoadTex(const std::string& key, const char* path) {
+    Texture2D LoadTex(const std::string& key, const char* path, bool repeat = true) {
         auto it = textures.find(key);
         if (it != textures.end()) return it->second;
         Texture2D tex = ::LoadTexture(path);
         if (tex.id == 0) TraceLog(LOG_WARNING, "ResourceManager: Failed to load texture '%s'", path);
+        if (repeat) SetTextureWrap(tex, TEXTURE_WRAP_REPEAT);
         textures[key] = tex;
         return tex;
     }
@@ -44,6 +46,7 @@ public:
 
     // ── Shaders ──────────────────────────────────────────────────────────
 
+    // Load shader with explicit paths (legacy / custom paths)
     Shader LoadShad(const std::string& key, const char* vsPath, const char* fsPath) {
         auto it = shaders.find(key);
         if (it != shaders.end()) return it->second.shader;
@@ -51,6 +54,20 @@ public:
         Shader s = ::LoadShader(vsPath, fsPath);
         if (s.id == 0) TraceLog(LOG_WARNING, "ResourceManager: Failed to load shader '%s'", key.c_str());
         shaders[key] = { s, vsPath ? vsPath : "", fsPath ? fsPath : "" };
+        return s;
+    }
+
+    // Load shader by name — auto-selects gl330/ or es100/ based on platform
+    Shader LoadPlatformShad(const std::string& key) {
+        auto it = shaders.find(key);
+        if (it != shaders.end()) return it->second.shader;
+
+        std::string base = GetShaderPath();
+        std::string vs = base + key + ".vs";
+        std::string fs = base + key + ".fs";
+        Shader s = ::LoadShader(vs.c_str(), fs.c_str());
+        if (s.id == 0) TraceLog(LOG_WARNING, "ResourceManager: Failed to load platform shader '%s'", key.c_str());
+        shaders[key] = { s, vs, fs };
         return s;
     }
 
@@ -160,8 +177,8 @@ private:
         std::string fsPath;
     };
 
-    std::unordered_map<std::string, Texture2D>    textures;
-    std::unordered_map<std::string, ShaderEntry>   shaders;
-    std::unordered_map<std::string, Model>         models;
-    std::unordered_map<std::string, MaterialInstance>      materials;
+    std::unordered_map<std::string, Texture2D>         textures;
+    std::unordered_map<std::string, ShaderEntry>        shaders;
+    std::unordered_map<std::string, Model>              models;
+    std::unordered_map<std::string, MaterialInstance>   materials;
 };

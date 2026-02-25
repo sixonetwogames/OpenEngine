@@ -47,6 +47,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/ai
 )
 
+# ─── Platform options ─────────────────────────────────────────────────────────
+option(PLATFORM_RPI "Build for Raspberry Pi (OpenGL ES 2.0)" OFF)
+
+if(PLATFORM_RPI)
+    set(PLATFORM "DRM" CACHE STRING "" FORCE)  # tells raylib to use DRM/KMS
+    add_compile_definitions(PLATFORM_RPI)
+endif()
+
 # ─── Link ────────────────────────────────────────────────────────────────────
 target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
 
@@ -68,6 +76,11 @@ if(EMSCRIPTEN)
         SUFFIX ".html"
         LINK_FLAGS "${EM_FLAGS_STR}"
     )
+elseif(PLATFORM_RPI)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        m pthread dl
+        GLESv2 EGL drm gbm
+    )
 elseif(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE opengl32 gdi32 winmm)
 elseif(APPLE)
@@ -87,6 +100,18 @@ if(NOT EMSCRIPTEN)
             ${CMAKE_SOURCE_DIR}/assets
             $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
         COMMENT "Copying assets to build directory"
+    )
+endif()
+
+# ─── Auto-convert shaders for ES100 builds (web + RPi) ───────────────────────
+if(EMSCRIPTEN OR PLATFORM_RPI)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/convert_shaders.py
+            ${CMAKE_SOURCE_DIR}/assets/shaders/gl330
+            ${CMAKE_SOURCE_DIR}/assets/shaders/es100
+        COMMENT "Converting GL330 shaders to ES100"
     )
 endif()
 

@@ -42,31 +42,6 @@ uniform float fogNoiseStrength;
 uniform vec2  fogWindOffset;
 uniform float fogTime;
 
-// --- Bayer 4x4 ---
-float bayer4x4(ivec2 p) {
-    int b[16] = int[16](
-         0,  8,  2, 10,
-        12,  4, 14,  6,
-         3, 11,  1,  9,
-        15,  7, 13,  5
-    );
-    return float(b[(p.y % 4) * 4 + (p.x % 4)]) / 16.0 - 0.5;
-}
-
-// --- Bayer 8x8 ---
-float bayer8x8(ivec2 p) {
-    int b[64] = int[64](
-         0, 32,  8, 40,  2, 34, 10, 42,
-        48, 16, 56, 24, 50, 18, 58, 26,
-        12, 44,  4, 36, 14, 46,  6, 38,
-        60, 28, 52, 20, 62, 30, 54, 22,
-         3, 35, 11, 43,  1, 33,  9, 41,
-        51, 19, 59, 27, 49, 17, 57, 25,
-        15, 47,  7, 39, 13, 45,  5, 37,
-        63, 31, 55, 23, 61, 29, 53, 21
-    );
-    return float(b[(p.y % 8) * 8 + (p.x % 8)]) / 64.0 - 0.5;
-}
 
 // --- Procedural noise for fog wisps ---
 float hash(vec2 p) {
@@ -147,19 +122,17 @@ void main() {
             fogFactor *= mix(1.0, noiseMask, fogNoiseStrength);
         }
 
-        // Bayer dither at fog edges
         if (fogDitherBlend > 0.0) {
-            fogFactor += bayer8x8(ivec2(gl_FragCoord.xy)) * fogDitherBlend * 0.15;
+            float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+            fogFactor += n * fogDitherBlend * 0.15;
         }
-
         fogFactor = clamp(fogFactor, 0.0, 1.0);
         color = mix(color, fogColor, fogFactor);
     }
 
-    // Color dither
     if (ditherEnabled > 0) {
-        float d = bayer4x4(ivec2(gl_FragCoord.xy)) * ditherStrength / ditherColorDepth;
-        color = floor(color * ditherColorDepth + 0.5 + d * ditherColorDepth) / ditherColorDepth;
+        float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+        color = floor(color * ditherColorDepth + 0.5 + n * ditherStrength) / ditherColorDepth;
     }
 
     finalColor = vec4(clamp(color, 0.0, 1.0), 1.0);

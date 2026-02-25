@@ -1,5 +1,6 @@
 #pragma once
 #include "raylib.h"
+#include "shader_utils.h"
 #include <string>
 #include <functional>
 
@@ -7,6 +8,15 @@ class HotReloadShader {
 public:
     using ReloadCallback = std::function<void(Shader)>;
 
+    // Platform-aware: auto-selects gl330 or es100 by name
+    void Init(const char* name, ReloadCallback onReload) {
+        std::string base = GetShaderPath();
+        Init((base + name + ".vs").c_str(),
+             (base + name + ".fs").c_str(),
+             onReload);
+    }
+
+    // Explicit paths
     void Init(const char* vsPath, const char* fsPath, ReloadCallback onReload) {
         vs = vsPath;
         fs = fsPath;

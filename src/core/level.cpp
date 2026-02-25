@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <stdexcept>
+#include "shader_utils.h"
 
 using json = nlohmann::json;
 using namespace Materials;
@@ -138,7 +139,7 @@ void Level::Load(CollisionSystem& collision,
 
     LevelDef def = LevelDef::LoadFromFile(levelDefPath);
 
-    pbr.Init(def.shader.vertex.c_str(), def.shader.fragment.c_str());
+    pbr.InitPlatform("pbr");
 
     auto& rm   = ResourceManager::Get();
     auto& fmat = def.floor.material;

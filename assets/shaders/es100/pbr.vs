@@ -1,16 +1,17 @@
-#version 330
+#version 100
+precision mediump float;
 
-in vec3 vertexPosition;
-in vec2 vertexTexCoord;
-in vec3 vertexNormal;
+attribute vec3 vertexPosition;
+attribute vec2 vertexTexCoord;
+attribute vec3 vertexNormal;
 
 uniform mat4 mvp;
 uniform mat4 matModel;
 uniform mat4 matNormal;
 
-out vec3 fragPosition;
-out vec2 fragTexCoord;
-out vec3 fragNormal;
+varying vec3 fragPosition;
+varying vec2 fragTexCoord;
+varying vec3 fragNormal;
 
 void main()
 {

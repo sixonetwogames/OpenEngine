@@ -2,6 +2,7 @@
 #include "rlgl.h"
 #include <cmath>
 
+#include "shader_utils.h"
 // ---------------------------------------------------------------------------
 // Internal state (file-scope, not exposed in header)
 // ---------------------------------------------------------------------------
@@ -173,7 +174,7 @@ void World::Init() {
 
     Mesh mesh = GenMeshSphere(SKY_SPHERE_RADIUS, SKY_SPHERE_RINGS, SKY_SPHERE_SLICES);
     skyModel  = LoadModelFromMesh(mesh);
-    skyShader = LoadShader(SKY_VS_PATH, SKY_FS_PATH);
+    skyShader = LoadPlatformShader("sky");
     skyModel.materials[0].shader = skyShader;
 
     timeLoc         = GetShaderLocation(skyShader, "time");

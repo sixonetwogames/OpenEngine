@@ -20,7 +20,6 @@ So far can use WASD or gamepad
 
 ### Links
 Github Pages: https://sixonetwogames.github.io/OpenEngine/
-Itch.io: https://evan4129.itch.io/openengine-3d
 
 ### License
 

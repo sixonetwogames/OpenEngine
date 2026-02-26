@@ -1,6 +1,7 @@
 #version 100
 #extension GL_OES_standard_derivatives : enable
 precision mediump float;
+precision mediump int;
 
 varying vec3 fragPosition;
 varying vec2 fragTexCoord;

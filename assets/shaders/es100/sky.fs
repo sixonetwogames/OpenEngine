@@ -1,5 +1,6 @@
 #version 100
 precision mediump float;
+precision mediump int;
 
 varying vec3 fragWorldPos;
 
@@ -36,8 +37,8 @@ float noise(vec2 p)
     f = f * f * (3.0 - 2.0 * f);
 
     return mix(
-        mix(hash(i), hash(i + vec2(1, 0)), f.x),
-        mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x),
+        mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
         f.y
     );
 }

@@ -9,16 +9,31 @@ static RenderTexture2D LoadRenderTextureFloat(int w, int h) {
     rt.id = rlLoadFramebuffer();
     if (rt.id > 0) {
         rlEnableFramebuffer(rt.id);
+
+#ifdef __EMSCRIPTEN__
+        // WebGL 1: RGBA8 only, encode depth in alpha as 8-bit
+        rt.texture.id     = rlLoadTexture(NULL, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
+        rt.texture.format = RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
+#else
         rt.texture.id     = rlLoadTexture(NULL, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16, 1);
+        rt.texture.format = RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16;
+#endif
         rt.texture.width  = w;
         rt.texture.height = h;
-        rt.texture.format = RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16;
         rt.texture.mipmaps = 1;
+
+        // NPOT-safe: clamp wrapping, no mipmaps
+        rlTextureParameters(rt.texture.id, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_CLAMP);
+        rlTextureParameters(rt.texture.id, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_CLAMP);
+
         rt.depth.id     = rlLoadTextureDepth(w, h, true);
         rt.depth.width  = w;
         rt.depth.height = h;
         rlFramebufferAttach(rt.id, rt.texture.id, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
         rlFramebufferAttach(rt.id, rt.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_RENDERBUFFER, 0);
+        if (!rlFramebufferComplete(rt.id)) {
+            TraceLog(LOG_ERROR, "FBO incomplete! format or depth attachment failed");
+        }
         rlDisableFramebuffer();
     }
     return rt;

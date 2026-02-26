@@ -1,5 +1,6 @@
 #version 100
 precision mediump float;
+precision mediump int;
 
 attribute vec3 vertexPosition;
 attribute vec2 vertexTexCoord;
@@ -26,19 +27,17 @@ varying vec3  fragFogColor;
 uniform float time;
 uniform float wind;    // amplitude of sway
 uniform vec3  windDirection;   // XY = normalized dir, Z = frequency
-uniform bool  windEnabled;     // toggle wind per-billboard
+uniform int   windEnabled;     // toggle wind per-billboard
 
 void main()
 {
     vec3 camRight, camUp;
 
     if (lockY == 1) {
-        // Y-locked: rotates only around Y axis
         vec3 look = normalize(vec3(cameraPos.x - billboardPos.x, 0.0, cameraPos.z - billboardPos.z));
         camRight = vec3(-look.z, 0.0, look.x);
         camUp    = vec3(0.0, 1.0, 0.0);
     } else {
-        // Spherical: fully faces camera on all axes
         vec3 look = normalize(cameraPos - billboardPos);
         camRight  = normalize(cross(vec3(0.0, 1.0, 0.0), look));
         camUp     = cross(look, camRight);
@@ -53,7 +52,7 @@ void main()
                   + camUp    * heightFactor * billboardSize.y;
 
     // Wind sway — scaled by height² so base stays planted, top sways most
-    if (windEnabled) {
+    if (windEnabled != 0) {
         float freq      = windDirection.z;
         // Position-based phase offset for per-tree variation
         float phase     = dot(billboardPos, vec3(7.31, 0.0, 13.57));

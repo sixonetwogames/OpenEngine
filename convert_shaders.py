@@ -30,6 +30,7 @@ def convert_shader(src: str, is_vertex: bool) -> tuple[str, list[str]]:
             if needs_derivatives and not is_vertex:
                 out.append('#extension GL_OES_standard_derivatives : enable')
             out.append('precision mediump float;')
+            out.append('precision mediump int;') 
             continue
 
         # --- Vertex: in → attribute, out → varying ---

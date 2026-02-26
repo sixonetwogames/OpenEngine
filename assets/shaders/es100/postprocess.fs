@@ -1,5 +1,6 @@
 #version 100
 precision mediump float;
+precision mediump int;
 
 varying vec2 fragUV;
 
@@ -54,8 +55,8 @@ float noise(vec2 p) {
     vec2 f = fract(p);
     f = f * f * (3.0 - 2.0 * f);
     return mix(
-        mix(hash(i), hash(i + vec2(1, 0)), f.x),
-        mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x),
+        mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
         f.y
     );
 }
@@ -116,7 +117,7 @@ void main() {
         fogFactor *= heightFactor;
 
         // Procedural noise wisps — pans with wind
-        if (fogNoiseStrength > 0.0, rayDist <fogFar) {
+        if (fogNoiseStrength > 0.0 && rayDist <fogFar) {
             vec2 noiseUV = worldPos.xz * fogNoiseScale + fogWindOffset;
             float n = fbm(noiseUV);
             float noiseMask = smoothstep(0.3 * fogNoiseStrength, 1.0 - 0.2 * fogNoiseStrength, n);

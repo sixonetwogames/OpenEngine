@@ -99,20 +99,14 @@ void PostProcess::Resize(int w, int h) {
 }
 
 void PostProcess::Begin() {
-    #if defined(__EMSCRIPTEN__) || defined(PLATFORM_RPI)
-        BeginDrawing();
-        ClearBackground(RAYWHITE);
-    #else
-        BeginTextureMode(target);
-        ClearBackground(RAYWHITE);
-    #endif
+    BeginTextureMode(target);
+    rlViewport(0, 0, width, height);  // force logical size, not POT size
+    ClearBackground(RAYWHITE);
 }
 
 void PostProcess::End() {
-    #if defined(__EMSCRIPTEN__) || defined(PLATFORM_RPI)
-        return;  // caller draws HUD + EndDrawing
-    #else
-        EndTextureMode();
+
+    EndTextureMode();
 
     Shader s = hotReload.Get();
 
@@ -184,12 +178,13 @@ void PostProcess::End() {
     BeginDrawing();
         ClearBackground(BLACK);
         BeginShaderMode(s);
-            // Source rect = logical render size (sub-rect of possibly larger POT texture)
+            float sw = (float)GetScreenWidth();
+            float sh = (float)GetScreenHeight();
             DrawTexturePro(target.texture,
-                           {0, 0, (float)width, -(float)height},
-                           {0, 0, (float)screenW, (float)screenH},
-                           {0, 0}, 0.0f, WHITE);
+                        {0, 0, (float)width, -(float)height},
+                        {0, 0, sw, sh},
+                        {0, 0}, 0.0f, WHITE);
         EndShaderMode();
     // EndDrawing() called by caller after HUD
-    #endif
+
 }

@@ -51,7 +51,7 @@ int main() {
                 level.DrawBillboards(camera);
             EndMode3D();
         pp.End();
-            hud.Draw(player.GetBody(), EC::SCREEN_W, EC::SCREEN_H);
+            hud.Draw(player.GetBody(), GetScreenWidth(), GetScreenHeight());
         EndDrawing();
     }
 

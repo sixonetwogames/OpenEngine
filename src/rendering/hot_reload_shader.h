@@ -27,15 +27,16 @@ public:
         callback(shader);
     }
 
-    /// Call once per frame. Returns true if shader was reloaded.
     bool Poll() {
+    #if defined(__EMSCRIPTEN__)
+        return false;  // no hot reload on web
+    #endif
         long vsNow = GetFileModTime(vs.c_str());
         long fsNow = GetFileModTime(fs.c_str());
 
         if (vsNow != vsModTime || fsNow != fsModTime) {
             vsModTime = vsNow;
             fsModTime = fsNow;
-
             Shader next = LoadShader(vs.c_str(), fs.c_str());
             if (next.id > 0) {
                 UnloadShader(shader);

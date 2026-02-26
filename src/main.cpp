@@ -8,6 +8,7 @@
 #include "postprocess.h"
 #include "HUD/hud.h"
 #include "rlgl.h"
+#include <cstdio>
 
 namespace EC = EngineConfig;
 
@@ -47,10 +48,9 @@ int main() {
                 level.Draw();
                 rlEnableColorBlend();
                 collision.DrawBillboards(camera);
-                level.DrawBillboards(camera);   // back inside scene — free depth test
+                level.DrawBillboards(camera);
             EndMode3D();
         pp.End();
-
             hud.Draw(player.GetBody(), EC::SCREEN_W, EC::SCREEN_H);
         EndDrawing();
     }

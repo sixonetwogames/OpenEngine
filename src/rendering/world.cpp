@@ -26,7 +26,7 @@ namespace {
     int fogNoiseStrengthLoc_sky = -1;
     int fogWindOffsetLoc_sky    = -1;
 
-    SkyPreset presets[4] = {};
+    SkyPreset presets[5] = {};
 
     Vector3 V3Lerp(Vector3 a, Vector3 b, float t) {
         return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t};

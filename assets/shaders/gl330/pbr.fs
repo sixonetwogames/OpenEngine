@@ -89,7 +89,7 @@ void main() {
     vec3 N;
     if (useNormalMap > 0) {
         vec3 normalMap = texture(texture1, uv).rgb * 2.0 - 1.0;
-        normalMap.xy *= normalStrength;
+        normalMap = vec3(normalMap.xy * normalStrength, normalMap.z);
         mat3 TBN;
         if (useWorldUVs > 0) {
             vec3 geoN = normalize(fragNormal);

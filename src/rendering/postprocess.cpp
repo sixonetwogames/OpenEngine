@@ -4,38 +4,32 @@
 #include "world.h"
 #include "rlgl.h"
 
-static RenderTexture2D LoadRenderTextureFloat(int w, int h) {
+static int NextPOT(int v) { int p = 1; while (p < v) p <<= 1; return p; }
+
+static RenderTexture2D LoadRenderTextureCompat(int w, int h) {
+#if defined(__EMSCRIPTEN__) || defined(PLATFORM_RPI)
+    int pw = NextPOT(w);
+    int ph = NextPOT(h);
+    RenderTexture2D rt = LoadRenderTexture(pw, ph);
+    SetTextureWrap(rt.texture, TEXTURE_WRAP_CLAMP);
+#else
     RenderTexture2D rt = { 0 };
     rt.id = rlLoadFramebuffer();
     if (rt.id > 0) {
         rlEnableFramebuffer(rt.id);
-
-#ifdef __EMSCRIPTEN__
-        // WebGL 1: RGBA8 only, encode depth in alpha as 8-bit
-        rt.texture.id     = rlLoadTexture(NULL, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, 1);
-        rt.texture.format = RL_PIXELFORMAT_UNCOMPRESSED_R8G8B8A8;
-#else
         rt.texture.id     = rlLoadTexture(NULL, w, h, RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16, 1);
-        rt.texture.format = RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16;
-#endif
         rt.texture.width  = w;
         rt.texture.height = h;
+        rt.texture.format = RL_PIXELFORMAT_UNCOMPRESSED_R16G16B16A16;
         rt.texture.mipmaps = 1;
-
-        // NPOT-safe: clamp wrapping, no mipmaps
-        rlTextureParameters(rt.texture.id, RL_TEXTURE_WRAP_S, RL_TEXTURE_WRAP_CLAMP);
-        rlTextureParameters(rt.texture.id, RL_TEXTURE_WRAP_T, RL_TEXTURE_WRAP_CLAMP);
-
         rt.depth.id     = rlLoadTextureDepth(w, h, true);
         rt.depth.width  = w;
         rt.depth.height = h;
         rlFramebufferAttach(rt.id, rt.texture.id, RL_ATTACHMENT_COLOR_CHANNEL0, RL_ATTACHMENT_TEXTURE2D, 0);
         rlFramebufferAttach(rt.id, rt.depth.id, RL_ATTACHMENT_DEPTH, RL_ATTACHMENT_RENDERBUFFER, 0);
-        if (!rlFramebufferComplete(rt.id)) {
-            TraceLog(LOG_ERROR, "FBO incomplete! format or depth attachment failed");
-        }
         rlDisableFramebuffer();
     }
+#endif
     return rt;
 }
 
@@ -83,7 +77,7 @@ void PostProcess::Init(int w, int h, int sw, int sh, const char* vsPath, const c
     height = h;
     screenW = sw;
     screenH = sh;
-    target = LoadRenderTextureFloat(w, h);
+    target = LoadRenderTextureCompat(w, h);
     SetTextureFilter(target.texture,
         EngineConfig::PIXEL_PERFECT ? TEXTURE_FILTER_POINT : TEXTURE_FILTER_BILINEAR);
     hotReload.Init(vsPath, fsPath, [this](Shader s) { CacheLocations(s); });
@@ -101,19 +95,28 @@ void PostProcess::Resize(int w, int h) {
     UnloadRenderTexture(target);
     width = w;
     height = h;
-    target = LoadRenderTextureFloat(w, h);
+    target = LoadRenderTextureCompat(w, h);
 }
 
 void PostProcess::Begin() {
-    BeginTextureMode(target);
-    ClearBackground(RAYWHITE);
+    #if defined(__EMSCRIPTEN__) || defined(PLATFORM_RPI)
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+    #else
+        BeginTextureMode(target);
+        ClearBackground(RAYWHITE);
+    #endif
 }
 
 void PostProcess::End() {
-    EndTextureMode();
+    #if defined(__EMSCRIPTEN__) || defined(PLATFORM_RPI)
+        return;  // caller draws HUD + EndDrawing
+    #else
+        EndTextureMode();
 
     Shader s = hotReload.Get();
 
+    // Resolution uniform = logical render size, not FBO size
     float res[2] = { (float)width, (float)height };
     SetShaderValue(s, resolutionLoc, res, SHADER_UNIFORM_VEC2);
 
@@ -129,7 +132,7 @@ void PostProcess::End() {
     SetShaderValue(s, ditherStrengthLoc,   &dither.strength,   SHADER_UNIFORM_FLOAT);
     SetShaderValue(s, ditherColorDepthLoc, &dither.colorDepth, SHADER_UNIFORM_FLOAT);
 
-    // Fog — reads from World namespace (single source of truth)
+    // Fog
     int fe = World::fogEnabled ? 1 : 0;
     SetShaderValue(s, fogEnabledLoc,     &fe,                    SHADER_UNIFORM_INT);
     SetShaderValue(s, fogDensityLoc,     &World::fogDensity,     SHADER_UNIFORM_FLOAT);
@@ -141,7 +144,7 @@ void PostProcess::End() {
     SetShaderValue(s, fogNearLoc,        &World::fogNear,        SHADER_UNIFORM_FLOAT);
     SetShaderValue(s, fogFarLoc,         &World::fogFar,         SHADER_UNIFORM_FLOAT);
 
-    // Camera vectors for world reconstruction
+    // Camera vectors
     SetShaderValue(s, camPosLoc,   &World::cameraPos,   SHADER_UNIFORM_VEC3);
     SetShaderValue(s, camFwdLoc,   &World::cameraFwd,   SHADER_UNIFORM_VEC3);
     SetShaderValue(s, camRightLoc, &World::cameraRight,  SHADER_UNIFORM_VEC3);
@@ -154,7 +157,6 @@ void PostProcess::End() {
     SetShaderValue(s, fogNoiseStrengthLoc, &World::fogNoiseStrength, SHADER_UNIFORM_FLOAT);
     SetShaderValue(s, fogTimeLoc,          &World::worldTime,        SHADER_UNIFORM_FLOAT);
 
-    // Wind offset: normalized dir * speed * time
     float wLen = sqrtf(World::fogWindDir.x * World::fogWindDir.x +
                        World::fogWindDir.y * World::fogWindDir.y);
     float wNorm = (wLen > 0.001f) ? 1.0f / wLen : 0.0f;
@@ -171,19 +173,23 @@ void PostProcess::End() {
     };
     SetShaderValue(s, fogColorLoc, fc, SHADER_UNIFORM_VEC3);
 
-    // Bind depth texture to sampler unit 1
+    // Depth texture — only on desktop (WebGL1 can't sample depth renderbuffers)
+#if !defined(__EMSCRIPTEN__) && !defined(PLATFORM_RPI)
     rlActiveTextureSlot(1);
     rlEnableTexture(target.depth.id);
     int depthSlot = 1;
     SetShaderValue(s, depthTexLoc, &depthSlot, SHADER_UNIFORM_INT);
+#endif
 
     BeginDrawing();
         ClearBackground(BLACK);
         BeginShaderMode(s);
+            // Source rect = logical render size (sub-rect of possibly larger POT texture)
             DrawTexturePro(target.texture,
                            {0, 0, (float)width, -(float)height},
                            {0, 0, (float)screenW, (float)screenH},
                            {0, 0}, 0.0f, WHITE);
         EndShaderMode();
     // EndDrawing() called by caller after HUD
+    #endif
 }

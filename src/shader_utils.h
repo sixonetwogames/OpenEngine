@@ -18,9 +18,12 @@ inline Shader LoadPlatformShader(const char* name) {
     std::string base = GetShaderPath();
     std::string vs = base + name + ".vs";
     std::string fs = base + name + ".fs";
-    return LoadShader(vs.c_str(), fs.c_str());
+    Shader s = LoadShader(vs.c_str(), fs.c_str());
+    if (s.id == 0) {
+        TraceLog(LOG_ERROR, "SHADER FAILED: %s", name);
+    }
+    return s;
 }
-
 // For shaders that only have a fragment stage (using raylib's default vertex shader)
 inline Shader LoadPlatformFragShader(const char* name) {
     std::string base = GetShaderPath();

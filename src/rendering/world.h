@@ -31,7 +31,7 @@ namespace World {
     inline float         fogZHeight     = 5.0f;     // world Y below which fog is full
     inline float         fogDitherBlend = 0.0f;     // bayer dither at edges (0-1)
     inline float         fogGroundBlend = 1.0f;     // how much sky ground color tints fog
-    inline float         fogNear        = 0.1f;     // camera near plane
+    inline float         fogNear        = 0.5f;     // camera near plane
     inline float         fogFar         = 550.0f;  // camera far plane
     inline float         fogHeight      = 0.6f;     // sky shader fog height band
     inline Color         fogColor       = {140, 142, 148, 255};
@@ -87,10 +87,6 @@ namespace World {
     // -----------------------------------------------------------------------
     // Asset paths
     // -----------------------------------------------------------------------
-    inline constexpr const char* SKY_VS_PATH    = "assets/shaders/sky.vs";
-    inline constexpr const char* SKY_FS_PATH    = "assets/shaders/sky.fs";
-    inline constexpr const char* SHADOW_VS_PATH = "assets/shaders/shadow.vs";
-    inline constexpr const char* SHADOW_FS_PATH = "assets/shaders/shadow.fs";
 
     // -----------------------------------------------------------------------
     // Read-only computed state (written by Update)

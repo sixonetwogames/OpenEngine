@@ -57,7 +57,9 @@ void main()
         // Position-based phase offset for per-tree variation
         float phase     = dot(billboardPos, vec3(7.31, 0.0, 13.57));
         float sway      = sin(time * freq + phase) * wind * 1.0* heightFactor * heightFactor;
-        worldPos.xz    += windDirection.xy * sway;
+        vec2 windOff = windDirection.xy * sway;
+        worldPos.x += windOff.x;
+        worldPos.z += windOff.y;
     }
 
     vec4 viewPos = matView * vec4(worldPos, 1.0);

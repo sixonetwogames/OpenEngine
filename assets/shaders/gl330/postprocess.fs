@@ -116,7 +116,7 @@ void main() {
         fogFactor *= heightFactor;
 
         // Procedural noise wisps — pans with wind
-        if (fogNoiseStrength > 0.0) {
+        if (fogNoiseStrength > 0.0, rayDist <fogFar) {
             vec2 noiseUV = worldPos.xz * fogNoiseScale + fogWindOffset;
             float n = fbm(noiseUV);
             float noiseMask = smoothstep(0.3 * fogNoiseStrength, 1.0 - 0.2 * fogNoiseStrength, n);

@@ -19,11 +19,14 @@ static Vector3 ParseVec3(const json& j) {
     return { j[0].get<float>(), j[1].get<float>(), j[2].get<float>() };
 }
 
+static Vector2 ParseVec2(const json& j) {
+    return { j[0].get<float>(), j[1].get<float>() };
+}
+
 // Resolve named preset, then apply any per-field JSON overrides on top.
 static LevelDef::MatDef ParseMat(const json& j) {
     LevelDef::MatDef m;
 
-    // Start from preset if "name" is present
     if (j.contains("name")) {
         const auto& preset = MaterialRegistry::Get().Lookup(j["name"].get<std::string>());
         const auto& base   = preset.params;
@@ -44,7 +47,6 @@ static LevelDef::MatDef ParseMat(const json& j) {
         m.normalTex       = preset.normalTex;
     }
 
-    // Override any explicitly-specified fields
     if (j.contains("albedo"))         m.albedo         = ParseColor(j["albedo"]);
     if (j.contains("metallic"))       m.metallic       = j["metallic"];
     if (j.contains("roughness"))      m.roughness      = j["roughness"];
@@ -64,6 +66,48 @@ static LevelDef::MatDef ParseMat(const json& j) {
     }
     return m;
 }
+
+// ── Billboard JSON parsing ──────────────────────────────────────────────────
+
+static LevelDef::BillboardEntry ParseBillboard(const json& j) {
+    LevelDef::BillboardEntry b;
+    b.defName        = j.value("name", "");
+    b.texture        = j.value("texture", "");
+    b.lockY          = j.value("lockY", true);
+    b.alphaThresh    = j.value("alphaThreshold", 0.1f);
+    b.roughness      = j.value("roughness", 0.8f);
+    b.metallic       = j.value("metallic", 0.0f);
+    b.normalStrength = j.value("normalStrength", 0.0f);
+
+    if (j.contains("size")) b.size = ParseVec2(j["size"]);
+
+    // Sprite sheet (optional)
+    if (j.contains("sheet")) {
+        auto& sh = j["sheet"];
+        b.sheet.cols        = sh.value("cols", 1);
+        b.sheet.rows        = sh.value("rows", 1);
+        b.sheet.totalFrames = sh.value("totalFrames", b.sheet.cols * b.sheet.rows);
+        b.sheet.fps         = sh.value("fps", 0.0f);
+        b.sheet.loop        = sh.value("loop", true);
+    }
+
+    // Instances: array of positions (or objects with position + scale)
+    if (j.contains("instances")) {
+        for (auto& inst : j["instances"]) {
+            if (inst.is_array()) {
+                b.positions.push_back(ParseVec3(inst));
+                b.scales.push_back(1.0f);
+            } else {
+                b.positions.push_back(ParseVec3(inst["position"]));
+                b.scales.push_back(inst.value("scale", 1.0f));
+            }
+        }
+    }
+
+    return b;
+}
+
+// ── LevelDef loading ────────────────────────────────────────────────────────
 
 LevelDef LevelDef::LoadFromFile(const char* path) {
     std::ifstream f(path);
@@ -91,6 +135,12 @@ LevelDef LevelDef::LoadFromFile(const char* path) {
         geo.material  = ParseMat(g["material"]);
         def.geometry.push_back(std::move(geo));
     }
+
+    if (root.contains("billboards")) {
+        for (auto& b : root["billboards"])
+            def.billboards.push_back(ParseBillboard(b));
+    }
+
     return def;
 }
 
@@ -106,7 +156,6 @@ Model Level::MakePBRCube(const Vector3& size) {
     return LoadModelFromMesh(mesh);
 }
 
-// Now copies ALL MaterialParams fields
 MaterialParams Level::BuildParams(const LevelDef::MatDef& m) {
     return {
         .albedo          = m.albedo,
@@ -151,13 +200,17 @@ void Level::Load(CollisionSystem& collision,
     pbr.SetTexture(TexSlot::Albedo, floorDiffuse);
     pbr.SetTexture(TexSlot::Normal, floorNormal);
 
+
+    
     shadows.Init();
+    billboards.Init();
 
     floorModel  = MakePBRPlane(def.floor.width, def.floor.depth);
     floorParams = BuildParams(fmat);
     pbr.Apply(floorModel);
 
     SpawnGeometry(collision, def);
+    SpawnBillboards(def);
 }
 
 void Level::Unload() {
@@ -165,6 +218,7 @@ void Level::Unload() {
     cubes.clear();
     cachedCasters.clear();
     UnloadModel(floorModel);
+    billboards.Unload();
     shadows.Unload();
     pbr.Unload();
     if (hasMap) { UnloadImage(mapImage); hasMap = false; }
@@ -190,7 +244,6 @@ void Level::SpawnGeometry(CollisionSystem& collision, const LevelDef& def) {
         Model mdl = MakePBRCube(geo.size);
         pbr.Apply(mdl);
 
-        // Per-cube textures (from preset or JSON override)
         if (!geo.material.diffuseTex.empty()) {
             Texture2D tex = rm.LoadTex(geo.material.diffuseTex.c_str(), geo.material.diffuseTex.c_str());
             mdl.materials[0].maps[MATERIAL_MAP_ALBEDO].texture = tex;
@@ -205,11 +258,51 @@ void Level::SpawnGeometry(CollisionSystem& collision, const LevelDef& def) {
     castersDirty = true;
 }
 
+// ── Billboard spawning from level def ───────────────────────────────────────
+
+void Level::SpawnBillboards(const LevelDef& def) {
+    TraceLog(LOG_INFO, "BILLBOARD: %d billboard defs in level", (int)def.billboards.size());
+
+    for (const auto& entry : def.billboards) {
+        if (!billboards.HasDef(entry.defName)) {
+            BillboardDef bd;
+            bd.texture        = LoadTexture(entry.texture.c_str());
+            bd.size           = entry.size;
+            bd.lockY          = entry.lockY;
+            bd.alphaThresh    = entry.alphaThresh;
+            bd.roughness      = entry.roughness;
+            bd.metallic       = entry.metallic;
+            bd.normalStrength = entry.normalStrength;
+            bd.sheet          = entry.sheet;
+
+            TraceLog(LOG_INFO, "BILLBOARD: Registered '%s' tex=%d (%dx%d) size=%.1fx%.1f",
+                     entry.defName.c_str(), bd.texture.id,
+                     bd.texture.width, bd.texture.height,
+                     bd.size.x, bd.size.y);
+
+            if (bd.texture.id == 0)
+                TraceLog(LOG_WARNING, "BILLBOARD: Texture FAILED to load: %s", entry.texture.c_str());
+
+            billboards.RegisterDef(entry.defName, bd);
+        }
+
+        uint16_t idx = billboards.LookupDef(entry.defName);
+        for (size_t i = 0; i < entry.positions.size(); i++) {
+            float scale = (i < entry.scales.size()) ? entry.scales[i] : 1.0f;
+            billboards.Spawn({ idx, entry.positions[i], scale });
+        }
+
+        TraceLog(LOG_INFO, "BILLBOARD: Spawned %d instances of '%s' (total: %d)",
+                 (int)entry.positions.size(), entry.defName.c_str(),
+                 (int)billboards.InstanceCount());
+    }
+}
+
 void Level::RebuildCasters() {
-    cachedCasters.clear();
-    cachedCasters.reserve(cubes.size());
+    meshCasters.clear();
+    meshCasters.reserve(cubes.size());
     for (const auto& c : cubes)
-        cachedCasters.push_back({ c.position, c.size });
+        meshCasters.push_back({ c.position, c.size });
     castersDirty = false;
 }
 
@@ -224,16 +317,19 @@ void Level::UpdateLighting(Vector3 camPos) {
     if (pbr.CheckReload()) ReapplyShader();
     pbr.SetFogPlanes(World::fogNear, World::fogFar);
     shadows.CheckReload();
+    billboards.CheckReload();
 
     shadows.SetSunDir(World::lightDir);
     pbr.SetSun(World::lightDir, World::lightColor, World::lightIntensity);
     pbr.SetSkylight(World::skylightColor, World::skylightIntensity);
     pbr.SetCamera(camPos);
+
+    billboards.Update(GetFrameTime());
 }
 
 // ── Drawing ─────────────────────────────────────────────────────────────────
 
-void Level::Draw() const {
+void Level::Draw(){
     pbr.Bind(floorParams);
     DrawModel(floorModel, {0, 0, 0}, 1.0f, WHITE);
 
@@ -241,8 +337,13 @@ void Level::Draw() const {
         pbr.Bind(c.pbr);
         DrawModel(c.model, c.position, 1.0f, WHITE);
     }
-
-    // Use cached casters — only rebuilt when geometry changes
-    if (castersDirty) const_cast<Level*>(this)->RebuildCasters();
+    cachedCasters.clear();
+    if (castersDirty) RebuildCasters();
+    cachedCasters.insert(cachedCasters.end(), meshCasters.begin(), meshCasters.end());
+    billboards.GatherShadowCasters(cachedCasters);
     shadows.Draw(cachedCasters);
+}
+
+void Level::DrawBillboards(Camera camera) {
+    billboards.Draw(camera);
 }

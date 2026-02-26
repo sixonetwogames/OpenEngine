@@ -3,6 +3,7 @@ precision mediump float;
 
 varying vec2 fragUV;
 
+
 uniform sampler2D texture0;
 uniform sampler2D depthTexture;
 uniform vec2      resolution;
@@ -94,18 +95,18 @@ void main() {
 
     if (fogEnabled > 0 && sceneData.a > 0.001) {
         float linearDist = sceneData.a * fogFar;
-
         // Reconstruct world position from camera ray + linear depth
         float aspect = resolution.x / resolution.y;
         float tanHalf = tan(camFov * 0.5);
         vec2 ndcXY = uv * 2.0 - 1.0;
-        vec3 rayDir = camFwd
+        vec3 rayDir = normalize(camFwd
                     + ndcXY.x * aspect * tanHalf * camRight
-                    + ndcXY.y * tanHalf * camUp;
-        vec3 worldPos = camPos + rayDir * linearDist;
+                    + ndcXY.y * tanHalf * camUp);
+        float rayDist = linearDist / max(dot(rayDir, camFwd), 0.001);
+        vec3 worldPos = camPos + rayDir * rayDist;
 
         // Distance fog (exponential squared)
-        float fogDist = max(linearDist - fogStart, 0.0);
+        float fogDist = max(rayDist - fogStart, 0.0);
         float exponent = fogDensity * fogDist;
         float fogFactor = 1.0 - exp(-exponent * exponent);
         fogFactor = mix(fogFactor, 1.0, step(fogMaxDist, linearDist));
@@ -115,25 +116,32 @@ void main() {
         fogFactor *= heightFactor;
 
         // Procedural noise wisps — pans with wind
-        if (fogNoiseStrength > 0.0) {
+        if (fogNoiseStrength > 0.0, rayDist <fogFar) {
             vec2 noiseUV = worldPos.xz * fogNoiseScale + fogWindOffset;
             float n = fbm(noiseUV);
             float noiseMask = smoothstep(0.3 * fogNoiseStrength, 1.0 - 0.2 * fogNoiseStrength, n);
             fogFactor *= mix(1.0, noiseMask, fogNoiseStrength);
         }
 
+        float fogFactorClean = fogFactor;
+
         if (fogDitherBlend > 0.0) {
-            float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
-            fogFactor += n * fogDitherBlend * 0.15;
+            float n = fract(sin(dot(gl_FragCoord.xy + camPos.xz * 40.0, vec2(12.9898, 78.233))) * 13.79) - 0.5;
+            fogFactor = clamp(fogFactor + n * 0.15, 0.0, 1.0);
         }
-        fogFactor = clamp(fogFactor, 0.0, 1.0);
-        color = mix(color, fogColor, fogFactor);
+        fogFactorClean = clamp(fogFactorClean, 0.0, 1.0);
+
+        vec3 fogClean    = mix(color, fogColor, fogFactorClean);
+        vec3 fogDithered = mix(color, fogColor, fogFactor);
+        color = mix(fogClean, fogDithered, fogDitherBlend);
     }
 
     if (ditherEnabled > 0) {
-        float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
-        color = floor(color * ditherColorDepth + 0.5 + n * ditherStrength) / ditherColorDepth;
+        float n = fract(sin(dot(gl_FragCoord.xy + camPos.xz * 40.0, vec2(12.98, 28.2))) * 17.3) - 0.5;
+        vec3 dithered = floor(color * ditherColorDepth + 0.5 + n) / ditherColorDepth;
+        color = mix(color, dithered, ditherStrength);
     }
 
     gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+
 }

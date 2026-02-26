@@ -3,6 +3,7 @@
 #include "collision.h"
 #include "material_instance.h"
 #include "shadow_system.h"
+#include "billboard_system.h"
 #include "rendering/materials/materials.h"
 #include "world.h"
 #include <string>
@@ -15,7 +16,7 @@ struct LevelDef {
     struct Fog    { float near = 0.1f, far = 50.0f; };
 
     struct MatDef {
-        std::string preset;                        // e.g. "Grass" — resolved at load
+        std::string preset;
         Color       albedo      = WHITE;
         float       metallic    = 0.0f;
         float       roughness   = 1.0f;
@@ -47,10 +48,27 @@ struct LevelDef {
         MatDef      material;
     };
 
-    Shader                shader;
-    Fog                   fog;
-    Floor                 floor;
-    std::vector<Geometry> geometry;
+    // ── Billboard entries ────────────────────────────────────────────────
+    struct BillboardEntry {
+        std::string defName;           // registry key (e.g. "tree1")
+        std::string texture;           // path to diffuse
+        Vector2     size{3.0f, 5.0f};
+        bool        lockY = true;
+        float       alphaThresh    = 0.1f;
+        float       roughness      = 0.8f;
+        float       metallic       = 0.0f;
+        float       normalStrength = 0.0f;
+        SpriteSheet sheet;
+        // Spawn positions
+        std::vector<Vector3> positions;
+        std::vector<float>   scales;    // parallel to positions, default 1.0
+    };
+
+    Shader                      shader;
+    Fog                         fog;
+    Floor                       floor;
+    std::vector<Geometry>       geometry;
+    std::vector<BillboardEntry> billboards;
 
     static LevelDef LoadFromFile(const char* path);
 };
@@ -75,20 +93,24 @@ public:
     void Unload();
 
     void UpdateLighting(Vector3 camPos);
-    void Draw() const;
+    void Draw();
+    void DrawBillboards(Camera camera);
 
-    MaterialInstance& GetPBR()     { return pbr; }
-    ShadowSystem&     GetShadows() { return shadows; }
+    MaterialInstance& GetPBR()        { return pbr; }
+    ShadowSystem&     GetShadows()    { return shadows; }
+    BillboardSystem&  GetBillboards() { return billboards; }
 
 private:
     MaterialInstance pbr;
     ShadowSystem     shadows;
+    BillboardSystem  billboards;
 
     Model          floorModel{};
     MaterialParams floorParams{};
 
     std::vector<LevelCube>    cubes;
-    std::vector<ShadowCaster> cachedCasters;   // rebuilt only on geometry change
+    std::vector<ShadowCaster> cachedCasters;
+    std::vector<ShadowCaster> meshCasters;
     bool                      castersDirty = true;
 
     Image   mapImage{};
@@ -99,6 +121,7 @@ private:
     Texture2D floorNormal{};
 
     void SpawnGeometry(CollisionSystem& collision, const LevelDef& def);
+    void SpawnBillboards(const LevelDef& def);
     void ReapplyShader();
     void RebuildCasters();
 

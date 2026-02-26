@@ -1,4 +1,5 @@
 #include "postprocess.h"
+#include "engine_config.h"
 #include "shader_utils.h"
 #include "world.h"
 #include "rlgl.h"
@@ -56,16 +57,20 @@ void PostProcess::CacheLocations(Shader s) {
     fogTimeLoc          = GetShaderLocation(s, "fogTime");
 }
 
-void PostProcess::Init(int w, int h) {
+void PostProcess::Init(int w, int h, int sw, int sh) {
     std::string vs = std::string(GetShaderPath()) + "postprocess.vs";
     std::string fs = std::string(GetShaderPath()) + "postprocess.fs";
-    Init(w, h, vs.c_str(), fs.c_str());
+    Init(w, h, sw, sh, vs.c_str(), fs.c_str());
 }
 
-void PostProcess::Init(int w, int h, const char* vsPath, const char* fsPath) {
+void PostProcess::Init(int w, int h, int sw, int sh, const char* vsPath, const char* fsPath) {
     width = w;
     height = h;
+    screenW = sw;
+    screenH = sh;
     target = LoadRenderTextureFloat(w, h);
+    SetTextureFilter(target.texture,
+        EngineConfig::PIXEL_PERFECT ? TEXTURE_FILTER_POINT : TEXTURE_FILTER_BILINEAR);
     hotReload.Init(vsPath, fsPath, [this](Shader s) { CacheLocations(s); });
 }
 
@@ -160,9 +165,10 @@ void PostProcess::End() {
     BeginDrawing();
         ClearBackground(BLACK);
         BeginShaderMode(s);
-            DrawTextureRec(target.texture,
+            DrawTexturePro(target.texture,
                            {0, 0, (float)width, -(float)height},
-                           {0, 0}, WHITE);
+                           {0, 0, (float)screenW, (float)screenH},
+                           {0, 0}, 0.0f, WHITE);
         EndShaderMode();
     // EndDrawing() called by caller after HUD
 }

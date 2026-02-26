@@ -37,14 +37,13 @@ void ShadowSystem::Draw(const std::vector<ShadowCaster>& casters) const {
     if (sunElev < 0.01f) return;
 
     float sunFade = fminf(sunElev / 0.25f, 1.0f);
-    float op = World::shadowOpacity * sunFade;
+    float baseOp  = World::shadowOpacity * sunFade;
 
-    SetShaderValue(s, colorLoc,   &World::shadowColor, SHADER_UNIFORM_VEC3);
-    SetShaderValue(s, opacityLoc, &op,                 SHADER_UNIFORM_FLOAT);
+    SetShaderValue(s, colorLoc, &World::shadowColor, SHADER_UNIFORM_VEC3);
+    SetShaderValue(s, opacityLoc, &baseOp, SHADER_UNIFORM_FLOAT);
 
-    // Alpha blend shadows, mask alpha writes to preserve PBR depth encoding
     rlEnableColorBlend();
-    rlSetBlendFactors(0x0302, 0x0303, 0x8006); // GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_FUNC_ADD
+    rlSetBlendFactors(0x0302, 0x0303, 0x8006);
     rlSetBlendMode(BLEND_CUSTOM);
     rlColorMask(true, true, true, false);
     rlDisableDepthMask();
@@ -53,15 +52,24 @@ void ShadowSystem::Draw(const std::vector<ShadowCaster>& casters) const {
     float hx = (hLen > 0.001f) ? sunDir.x / hLen : 0.0f;
     float hz = (hLen > 0.001f) ? sunDir.z / hLen : 0.0f;
 
-    float offsetScale = World::shadowSunOffset * (1.0f / fmaxf(sunElev, 0.1f));
-    offsetScale = fminf(offsetScale, World::shadowSunOffset * 8.0f);
+    float globalOffsetScale = World::shadowSunOffset * (1.0f / fmaxf(sunElev, 0.1f));
+    globalOffsetScale = fminf(globalOffsetScale, World::shadowSunOffset * 8.0f);
 
     float stretch = 1.0f + (1.0f - fminf(sunElev / 0.5f, 1.0f)) * (World::shadowMaxStretch - 1.0f);
     constexpr float pad = 1.5f;
 
     for (const auto& c : casters) {
+        if (!c.enabled) continue;
+
+        // Per-caster sun offset override
+        float offScale = globalOffsetScale;
+        if (c.sunOffsetOverride >= 0.0f) {
+            offScale = c.sunOffsetOverride * (1.0f / fmaxf(sunElev, 0.1f));
+            offScale = fminf(offScale, c.sunOffsetOverride * 8.0f);
+        }
+
         float halfH = c.size.y * 0.5f;
-        float offAmount = halfH * offsetScale;
+        float offAmount = halfH * offScale;
 
         Vector3 pos = {
             c.position.x + hx * offAmount,

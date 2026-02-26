@@ -58,6 +58,11 @@ static void InitDefaultPresets() {
         .ground = {0.10f, 0.08f, 0.06f}, .sunColor = {1.0f, 0.5f, 0.2f},
         .sunIntensity = 0.7f, .cloudOpacity = 0.55f,
     };
+    presets[4] = { // Night
+        .zenith = {0.07f, 0.09f, 0.3f}, .horizon = {0.21f, 0.24f, 0.62f},
+        .ground = {0.01f, 0.01f, 0.03f}, .sunColor = {0.3f, 0.3f, 0.5f},
+        .sunIntensity = 0.0f, .cloudOpacity = 0.15f,
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +219,7 @@ void World::Update(Camera camera) {
 
     // Sky shader uniforms
     float sunAngle = (dayProgress - 0.25f) * PI * 2.0f;
-    Vector3 skyShaderSunDir = Vector3Normalize({cosf(sunAngle), -sinf(sunAngle), -0.3f});
+    Vector3 skyShaderSunDir = Vector3Normalize({cosf(sunAngle), -sinf(sunAngle), -0.3});
 
     SetShaderValue(skyShader, timeLoc,         &worldTime,               SHADER_UNIFORM_FLOAT);
     SetShaderValue(skyShader, sunDirLoc,       &skyShaderSunDir,         SHADER_UNIFORM_VEC3);

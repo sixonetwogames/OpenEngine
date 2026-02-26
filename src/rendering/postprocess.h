@@ -4,7 +4,7 @@
 #include "hot_reload_shader.h"
 
 struct DitherSettings {
-    bool  enabled    = true;
+    bool  enabled    = false;
     float strength   = 0.3f;
     float colorDepth = 8.0f;
 };
@@ -17,8 +17,8 @@ struct BarrelSettings {
 
 class PostProcess {
 public:
-    void Init(int width, int height);  // platform-aware
-    void Init(int width, int height, const char* vsPath, const char* fsPath);
+    void Init(int w, int h, int sw, int sh);
+    void Init(int w, int h, int sw, int sh, const char* vsPath, const char* fsPath);
     void Unload();
     void CheckReload();
 
@@ -40,6 +40,7 @@ private:
     BarrelSettings barrel;
 
     // Uniform locations
+    int screenW, screenH;
     int resolutionLoc{-1};
     int barrelEnabledLoc{-1}, barrelStrengthLoc{-1}, barrelZoomLoc{-1};
     int ditherEnabledLoc{-1}, ditherStrengthLoc{-1}, ditherColorDepthLoc{-1};

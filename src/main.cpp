@@ -26,7 +26,7 @@ int main() {
     player.Init({0, 0, 0});
     level.Load(collision, EC::DEFAULT_LEVEL);
     World::Init();
-    pp.Init(EC::SCREEN_W, EC::SCREEN_H);
+    pp.Init(EC::RENDER_W, EC::RENDER_H, EC::SCREEN_W, EC::SCREEN_H);
 
     while (!WindowShouldClose()) {
         InputState state = input.Poll();
@@ -47,6 +47,7 @@ int main() {
                 level.Draw();
                 rlEnableColorBlend();
                 collision.DrawBillboards(camera);
+                level.DrawBillboards(camera);   // back inside scene — free depth test
             EndMode3D();
         pp.End();
 

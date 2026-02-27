@@ -31,7 +31,7 @@ namespace World {
     inline float         fogZHeight     = 5.0f;     // world Y below which fog is full
     inline float         fogDitherBlend = 0.0f;     // bayer dither at edges (0-1)
     inline float         fogGroundBlend = 1.0f;     // how much sky ground color tints fog
-    inline float         fogNear        = 0.5f;     // camera near plane
+    inline float         fogNear        = 0.1f;     // camera near plane
     inline float         fogFar         = 550.0f;  // camera far plane
     inline float         fogHeight      = 0.6f;     // sky shader fog height band
     inline Color         fogColor       = {140, 142, 148, 255};
@@ -58,8 +58,8 @@ namespace World {
     // Day cycle
     // -----------------------------------------------------------------------
     inline float         dayLengthSec     = 600.0f;
-    inline float         timeScale        = 5.0f;
-    inline float         startDayProgress = 0.2f;
+    inline float         timeScale        = 10.0f;
+    inline float         startDayProgress = 0.0f;
 
     inline float         dawnWidth        = 0.1f;
     inline float         duskWidth        = 0.1f;
@@ -99,8 +99,8 @@ namespace World {
     // Weather (runtime-driven)
     // -----------------------------------------------------------------------
     inline float         rainAmount    = 0.0f;
-    inline float         windStrength  = 0.2f;
-    inline Vector3 windDirection = {1.0f,0.5f,0.3f}; //X,Y, freq
+    inline float         windStrength  = 1.0f;
+    inline Vector3 windDirection = {1.0f,0.5f,0.2f}; //X,Y, freq
 
     // Lighting (computed by Update)
     inline Vector3       lightDir         = {};

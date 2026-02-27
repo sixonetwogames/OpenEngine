@@ -71,6 +71,12 @@ def convert_shader(src: str, is_vertex: bool) -> tuple[str, list[str]]:
     if re.search(r'\bivec[234]\b', src):
         warnings.append('ivec type used — ES 100 has limited int support, verify usage')
 
+    # Check for non-constant loop bounds (ES 100 requires constant expressions)
+    loop_matches = re.findall(r'for\s*\([^;]*;\s*\w+\s*[<>=!]+\s*(\w+)', src)
+    for var in loop_matches:
+        if not var.isdigit() and var not in ('gl_MaxVertexAttribs',):
+            warnings.append(f'Loop bound "{var}" may not be constant — ES 100 requires constant loop bounds. Use fixed max + break.')
+
     return '\n'.join(out), warnings
 
 

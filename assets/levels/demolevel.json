@@ -69,6 +69,32 @@
         { "position": [-45.0, 0.0,  45.0], "scale": 2.2 },
         { "position": [ 48.0, 0.0, -40.0], "scale": 2.1 }
       ]
+    },
+    {
+      "name": "sphere_small",
+      "texture": "assets/textures/procedural/sphere_D.png",
+      "size": [2.0, 2.0],
+      "spherical": true,
+      "sphereSpeed": 0.0,
+      "roughness": 0.2,
+      "metallic": 0.0,
+      "normalStrength": 0.0,
+      "instances": [
+        [5.0, 1.5, 5.0]
+      ]
+    },
+    {
+      "name": "sphere_large",
+      "texture": "assets/textures/procedural/sphere_D.png",
+      "size": [10.0, 10.0],
+      "spherical": true,
+      "sphereSpeed": 0.0,
+      "roughness": 0.2,
+      "metallic": 0.0,
+      "normalStrength": 0.0,
+      "instances": [
+        [35.0, 8.0, -35.0]
+      ]
     }
   ]
 }

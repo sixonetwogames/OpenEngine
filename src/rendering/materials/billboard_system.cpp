@@ -38,10 +38,10 @@ void BillboardSystem::CacheLocations(Shader s) {
     s.locs[SHADER_LOC_MATRIX_VIEW]       = GetShaderLocation(s, "matView");
     s.locs[SHADER_LOC_MATRIX_PROJECTION] = GetShaderLocation(s, "matProjection");
 
-    locTime        = GetShaderLocation(s, "time");
-    locWind        = GetShaderLocation(s, "wind");
-    locWindDirection = GetShaderLocation(s, "windDirection");
-    locWindEnabled = GetShaderLocation(s, "windEnabled");
+    locTime            = GetShaderLocation(s, "time");
+    locWind            = GetShaderLocation(s, "wind");
+    locWindDirection   = GetShaderLocation(s, "windDirection");
+    locWindEnabled     = GetShaderLocation(s, "windEnabled");
     locBillboardPos    = GetShaderLocation(s, "billboardPos");
     locBillboardSize   = GetShaderLocation(s, "billboardSize");
     locAlphaThreshold  = GetShaderLocation(s, "alphaThreshold");
@@ -49,6 +49,8 @@ void BillboardSystem::CacheLocations(Shader s) {
     locUvMin           = GetShaderLocation(s, "uvMin");
     locUvMax           = GetShaderLocation(s, "uvMax");
     locLockY           = GetShaderLocation(s, "lockY");
+    locSpherical       = GetShaderLocation(s, "spherical");
+    locSphereSpeed     = GetShaderLocation(s, "sphereSpeed");
     locFogNear         = GetShaderLocation(s, "fogNear");
     locFogFar          = GetShaderLocation(s, "fogFar");
     locFogColor        = GetShaderLocation(s, "fogColor");
@@ -153,18 +155,16 @@ void BillboardSystem::GatherShadowCasters(std::vector<ShadowCaster>& out) const 
     for (const auto& inst : instances) {
         const BillboardDef& def = defs[inst.defIndex];
 
-        // Resolve shadow toggle: instance override > def default
         bool wantShadow = def.castsShadow;
         if (inst.shadowOverride > 0)       wantShadow = true;
         else if (inst.shadowOverride < 0)  wantShadow = false;
         if (!wantShadow) continue;
 
-        // Auto-size: use billboard width for X/Z, billboard height for Y (offset calc)
         Vector3 sz = def.shadowSize;
         if (sz.x == 0.0f && sz.y == 0.0f && sz.z == 0.0f) {
             float w = def.size.x * inst.scale;
             float h = def.size.y * inst.scale;
-            sz = { w, h, w };  // circular footprint, Y carries height for offset
+            sz = { w, h, w };
         } else {
             sz.x *= inst.scale;
             sz.y *= inst.scale;
@@ -247,8 +247,9 @@ void BillboardSystem::Draw(Camera camera) {
         float sz[2] = { def.size.x * inst.scale, def.size.y * inst.scale };
         Color  t = (inst.tintOverride.a > 0) ? inst.tintOverride : def.tint;
         float tint[4] = { t.r/255.0f, t.g/255.0f, t.b/255.0f, t.a/255.0f };
-        int lockYi = (def.spherical) ? 0 : (def.lockY ? 1 : 0);
-        int windEn = def.windEnabled ? 1 : 0;
+        int lockYi  = (def.spherical) ? 0 : (def.lockY ? 1 : 0);
+        int sphereI = def.spherical ? 1 : 0;
+        int windEn  = def.windEnabled ? 1 : 0;
 
         SetShaderValue(s, locBillboardPos,    &inst.position,      SHADER_UNIFORM_VEC3);
         SetShaderValue(s, locBillboardSize,   sz,                  SHADER_UNIFORM_VEC2);
@@ -257,6 +258,8 @@ void BillboardSystem::Draw(Camera camera) {
         SetShaderValue(s, locUvMin,           &uvMin,              SHADER_UNIFORM_VEC2);
         SetShaderValue(s, locUvMax,           &uvMax,              SHADER_UNIFORM_VEC2);
         SetShaderValue(s, locLockY,           &lockYi,             SHADER_UNIFORM_INT);
+        SetShaderValue(s, locSpherical,       &sphereI,            SHADER_UNIFORM_INT);
+        SetShaderValue(s, locSphereSpeed,     &def.sphereSpeed,    SHADER_UNIFORM_FLOAT);
         SetShaderValue(s, locWindEnabled,     &windEn,             SHADER_UNIFORM_INT);
         SetShaderValue(s, locRoughness,       &def.roughness,      SHADER_UNIFORM_FLOAT);
         SetShaderValue(s, locMetallic,        &def.metallic,       SHADER_UNIFORM_FLOAT);

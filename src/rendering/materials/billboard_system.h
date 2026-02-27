@@ -39,8 +39,9 @@ struct BillboardDef {
     // Wind
     bool      windEnabled = false;
 
-    // Spherical: faces camera on all axes (overrides lockY when true)
-    bool      spherical = false;
+    // Spherical: faces camera on all axes, enables sphere projection shader
+    bool      spherical   = false;
+    float     sphereSpeed = 1.0f;   // rotation speed (radians/sec)
 
     // Shadow defaults for instances using this def
     bool      castsShadow      = true;
@@ -89,7 +90,6 @@ public:
     void Draw(Camera camera);
 
     // --- Shadow integration ---
-    // Populates `out` with a ShadowCaster for each instance that wants a shadow.
     void GatherShadowCasters(std::vector<ShadowCaster>& out) const;
 
 private:
@@ -114,6 +114,8 @@ private:
     int locUvMin           = -1;
     int locUvMax           = -1;
     int locLockY           = -1;
+    int locSpherical       = -1;
+    int locSphereSpeed     = -1;
     int locFogNear         = -1;
     int locFogFar          = -1;
     int locFogColor        = -1;

@@ -16,14 +16,19 @@ namespace BillboardPresets {
         return d;
     }
 
-    inline BillboardDef Sphere(Texture2D tex, Vector2 size = {1.0f, 1.0f}) {
+    inline BillboardDef Sphere(Texture2D tex, Vector2 size = {1.0f, 1.0f},
+                               float speed = 0.0f, float rough = 0.2f) {
         BillboardDef d;
         d.texture         = tex;
         d.size            = size;
         d.lockY           = false;
         d.spherical       = true;
-        d.alphaThresh     = 0.1f;
-        d.roughness       = 0.6f;
+        d.sphereSpeed     = speed;
+        d.alphaThresh     = 0.0f;        // disc clipping handled by shader
+        d.roughness       = rough;
+        d.metallic        = 0.1f;
+        d.normalStrength  = 0.6f;
+        d.windEnabled     = false;
         d.castsShadow     = true;
         d.shadowSize      = { size.x * 0.5f, size.y, size.x * 0.5f };
         return d;

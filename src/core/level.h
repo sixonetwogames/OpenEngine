@@ -58,6 +58,8 @@ struct LevelDef {
         float       roughness      = 0.8f;
         float       metallic       = 0.0f;
         float       normalStrength = 0.0f;
+        bool        spherical      = false;
+        float       sphereSpeed    = 0.4f;
         SpriteSheet sheet;
         // Spawn positions
         std::vector<Vector3> positions;

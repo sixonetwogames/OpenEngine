@@ -78,6 +78,8 @@ static LevelDef::BillboardEntry ParseBillboard(const json& j) {
     b.roughness      = j.value("roughness", 0.8f);
     b.metallic       = j.value("metallic", 0.0f);
     b.normalStrength = j.value("normalStrength", 0.0f);
+    b.spherical      = j.value("spherical", false);
+    b.sphereSpeed    = j.value("sphereSpeed", 0.4f);
 
     if (j.contains("size")) b.size = ParseVec2(j["size"]);
 
@@ -273,6 +275,8 @@ void Level::SpawnBillboards(const LevelDef& def) {
             bd.roughness      = entry.roughness;
             bd.metallic       = entry.metallic;
             bd.normalStrength = entry.normalStrength;
+            bd.spherical      = entry.spherical;
+            bd.sphereSpeed    = entry.sphereSpeed;
             bd.sheet          = entry.sheet;
 
             TraceLog(LOG_INFO, "BILLBOARD: Registered '%s' tex=%d (%dx%d) size=%.1fx%.1f",

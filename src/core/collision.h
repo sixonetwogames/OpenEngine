@@ -10,10 +10,15 @@ struct AABB {
     Vector3 max;
 };
 
+enum class ColliderShape : uint8_t { Box, Sphere };
+
 struct Collider {
-    AABB     bounds;
-    uint32_t tag;
-    bool     isTrigger;
+    ColliderShape  shape    = ColliderShape::Box;
+    AABB           bounds;          // box only
+    Vector3        center;          // sphere only
+    float          radius   = 0.0f; // sphere only
+    uint32_t       tag;
+    bool           isTrigger;
 };
 
 // --- Spawn descriptors ---
@@ -46,6 +51,7 @@ public:
     // Registration
     uint32_t AddCollider(const Collider& col);
     uint32_t AddAABB(Vector3 center, Vector3 halfExtents, uint32_t tag = 0, bool trigger = false);
+    uint32_t AddSphere(Vector3 center, float radius, uint32_t tag = 0, bool trigger = false);
     void     RemoveCollider(uint32_t id);
     void     Clear();
 
@@ -74,4 +80,6 @@ private:
 
     bool    CylinderAABBOverlap(Vector3 pos, float radius, float height, const AABB& box) const;
     Vector3 CylinderAABBPushout(Vector3 pos, float radius, float height, const AABB& box) const;
+    bool    CylinderSphereOverlap(Vector3 pos, float cylRadius, float height, Vector3 center, float sphereRadius) const;
+    Vector3 CylinderSpherePushout(Vector3 pos, float cylRadius, Vector3 center, float sphereRadius) const;
 };

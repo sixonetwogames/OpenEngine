@@ -13,8 +13,8 @@ inline constexpr bool  START_FULLSCREEN = false;
 // ---------------------------------------------------------------------------
 // Internal render resolution (upscaled to window size)
 // ---------------------------------------------------------------------------
-inline constexpr int   RENDER_W         = 480;
-inline constexpr int   RENDER_H         = 320;
+inline constexpr int   RENDER_W         = 854;
+inline constexpr int   RENDER_H         = 480;
 inline constexpr bool  PIXEL_PERFECT    = true;   // nearest-neighbor if true
 
 // ---------------------------------------------------------------------------
@@ -32,21 +32,22 @@ inline constexpr float FOV_DEFAULT        = 90.0f;
 inline constexpr float STAND_HEIGHT    = 2.0f;
 inline constexpr float CROUCH_HEIGHT   = 0.5f;
 inline constexpr float BOTTOM_HEIGHT   = 0.45f;
-inline constexpr float GRAVITY         = 17.0f;
+inline constexpr float GRAVITY         = 20.0f;
 inline constexpr float JUMP_FORCE      = 10.0f;
 inline constexpr float MAX_SPEED       = 10.0f;
 inline constexpr float CROUCH_SPEED    = 3.5f;
 inline constexpr float MAX_ACCEL       = 100.0f;
 inline constexpr float FRICTION        = 0.85f;
-inline constexpr float AIR_DRAG        = 0.98f;
+inline constexpr float AIR_DRAG        = 0.8f;
 inline constexpr float CONTROL_RESP    = 15.0f;
+inline constexpr float MAX_SLOPE_ANGLE = 45.0f;   // degrees — steeper surfaces block movement
 
 // ---------------------------------------------------------------------------
 // Slide
 // ---------------------------------------------------------------------------
-inline constexpr float SLIDE_MIN_SPEED  = 3.0f;
-inline constexpr float SLIDE_EXIT_SPEED = 1.5f;
-inline constexpr float SLIDE_BOOST      = 1.9f;
+inline constexpr float SLIDE_MIN_SPEED  = 10.0f;
+inline constexpr float SLIDE_EXIT_SPEED = 15.0f;
+inline constexpr float SLIDE_BOOST      = 5.9f;
 inline constexpr float SLIDE_FRICTION   = 0.98f;
 inline constexpr float SLIDE_STEER      = 3.0f;
 inline constexpr float SLIDE_FOV        = 100.0f;

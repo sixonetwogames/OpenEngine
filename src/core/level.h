@@ -60,6 +60,7 @@ struct LevelDef {
         float       normalStrength = 0.0f;
         bool        spherical      = false;
         float       sphereSpeed    = 0.4f;
+        bool        collision      = false;
         SpriteSheet sheet;
         // Spawn positions
         std::vector<Vector3> positions;
@@ -123,7 +124,7 @@ private:
     Texture2D floorNormal{};
 
     void SpawnGeometry(CollisionSystem& collision, const LevelDef& def);
-    void SpawnBillboards(const LevelDef& def);
+    void SpawnBillboards(CollisionSystem& collision, const LevelDef& def);
     void ReapplyShader();
     void RebuildCasters();
 

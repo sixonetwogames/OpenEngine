@@ -1,4 +1,5 @@
 #include "collision.h"
+#include "engine_config.h"
 #include <cmath>
 #include <algorithm>
 
@@ -17,6 +18,17 @@ uint32_t CollisionSystem::AddAABB(Vector3 center, Vector3 halfExtents, uint32_t 
         {center.x - halfExtents.x, center.y - halfExtents.y, center.z - halfExtents.z},
         {center.x + halfExtents.x, center.y + halfExtents.y, center.z + halfExtents.z}
     };
+    c.shape     = ColliderShape::Box;
+    c.tag       = tag;
+    c.isTrigger = trigger;
+    return AddCollider(c);
+}
+
+uint32_t CollisionSystem::AddSphere(Vector3 center, float radius, uint32_t tag, bool trigger) {
+    Collider c{};
+    c.shape     = ColliderShape::Sphere;
+    c.center    = center;
+    c.radius    = radius;
     c.tag       = tag;
     c.isTrigger = trigger;
     return AddCollider(c);
@@ -117,6 +129,62 @@ Vector3 CollisionSystem::CylinderAABBPushout(Vector3 pos, float radius, float he
     return pushout;
 }
 
+bool CollisionSystem::CylinderSphereOverlap(Vector3 pos, float cylRadius, float height,
+                                             Vector3 center, float sphereRadius) const {
+    float pBot = pos.y, pTop = pos.y + height;
+    // Clamp sphere center Y to cylinder vertical range
+    float closestY = std::clamp(center.y, pBot, pTop);
+    float dy = center.y - closestY;
+    float dx = pos.x - center.x;
+    float dz = pos.z - center.z;
+    float dist2 = dx * dx + dy * dy + dz * dz;
+    float r = cylRadius + sphereRadius;
+    return dist2 <= r * r;
+}
+
+Vector3 CollisionSystem::CylinderSpherePushout(Vector3 pos, float cylRadius,
+                                                Vector3 center, float sphereRadius) const {
+    float dx = pos.x - center.x;
+    float dy = (pos.y + cylRadius) - center.y; // approximate cylinder center Y
+    float dz = pos.z - center.z;
+    float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+    float combined = cylRadius + sphereRadius;
+
+    Vector3 pushout = {0};
+    if (dist < 0.0001f) { pushout.x = combined; return pushout; }
+
+    // Contact normal from sphere center to player
+    float nx = dx / dist;
+    float ny = dy / dist;
+    float nz = dz / dist;
+
+    float penetration = combined - dist;
+
+    // Slope check: angle between contact normal and up vector
+    // ny == 1 means directly above (flat), ny == 0 means side (vertical wall)
+    float maxSlopeCos = cosf(EngineConfig::MAX_SLOPE_ANGLE * 3.14159265f / 180.0f);
+
+    if (ny > maxSlopeCos) {
+        // Walkable slope — push player up onto surface
+        pushout.y = penetration * ny;
+        pushout.x = penetration * nx * 0.3f;
+        pushout.z = penetration * nz * 0.3f;
+    } else {
+        // Too steep — wall-style XZ pushout only
+        float hDist = sqrtf(dx * dx + dz * dz);
+        if (hDist > 0.0001f) {
+            float hPen = (cylRadius + sphereRadius) - hDist;
+            if (hPen > 0.0f) {
+                pushout.x = (dx / hDist) * hPen;
+                pushout.z = (dz / hDist) * hPen;
+            }
+        } else {
+            pushout.x = combined;
+        }
+    }
+    return pushout;
+}
+
 bool CollisionSystem::ResolveBody(Vector3& position, Vector3 prevPosition, float radius, float height) const {
     bool collided = false;
     constexpr int MAX_ITERATIONS = 4;
@@ -125,9 +193,19 @@ bool CollisionSystem::ResolveBody(Vector3& position, Vector3 prevPosition, float
         bool anyHit = false;
         for (auto& col : colliders) {
             if (col.isTrigger) continue;
-            if (!CylinderAABBOverlap(position, radius, height, col.bounds)) continue;
 
-            Vector3 push = CylinderAABBPushout(position, radius, height, col.bounds);
+            bool overlap = false;
+            Vector3 push = {0};
+
+            if (col.shape == ColliderShape::Sphere) {
+                if (!CylinderSphereOverlap(position, radius, height, col.center, col.radius)) continue;
+                overlap = true;
+                push = CylinderSpherePushout(position, radius, col.center, col.radius);
+            } else {
+                if (!CylinderAABBOverlap(position, radius, height, col.bounds)) continue;
+                overlap = true;
+                push = CylinderAABBPushout(position, radius, height, col.bounds);
+            }
 
             if (push.x != push.x || push.z != push.z ||
                 std::abs(push.x) > 100.0f || std::abs(push.z) > 100.0f) {
@@ -137,6 +215,7 @@ bool CollisionSystem::ResolveBody(Vector3& position, Vector3 prevPosition, float
 
             position.x += push.x;
             position.z += push.z;
+            if (col.shape == ColliderShape::Sphere) position.y += push.y;
             anyHit = true;
             collided = true;
         }

@@ -105,28 +105,24 @@ static void ComputeLighting(float t) {
     float sunElev = sinf(sunAngle);
 
     Vector3 sunDir = Vector3Normalize({cosf(sunAngle), -sinf(sunAngle), -0.3f});
-    Vector3 moonDir = {-sunDir.x, -sunDir.y, -sunDir.z};
 
-    float sunFade = Clamp01((sunElev - World::sunFadeEnd) /
-                            (World::sunFadeStart - World::sunFadeEnd + 0.001f));
-    sunFade *= sunFade;
+    // Smooth crossfade band around horizon (±0.15 elevation)
+    float blend = Clamp01((sunElev + 0.15f) / 0.3f);
+    blend = blend * blend * (3.0f - 2.0f * blend); // smoothstep
 
-    float moonFade = Clamp01(-sunElev / 0.15f);
-    moonFade *= moonFade;
-
-    // Sun elevation drives intensity lerp (0 at horizon → 1 at zenith)
+    // Sun elevation drives intensity lerp
     float dayFactor = Clamp01(sunElev / 0.5f);
+    dayFactor = dayFactor * dayFactor * (3.0f - 2.0f * dayFactor); // smoothstep
 
-    if (sunElev > 0.0f) {
-        World::lightDir       = sunDir;
-        World::lightColor     = World::currentSky.sunColor;
-        World::lightIntensity = World::currentSky.sunIntensity * sunFade *
-                                (World::nightSunIntensity + (World::sunPeakIntensity - World::nightSunIntensity) * dayFactor);
-    } else {
-        World::lightDir       = moonDir;
-        World::lightColor     = World::moonColor;
-        World::lightIntensity = World::moonIntensity * moonFade * World::nightSunIntensity;
-    }
+    float sunIntensity  = World::currentSky.sunIntensity * blend *
+                          (World::nightSunIntensity + (World::sunPeakIntensity - World::nightSunIntensity) * dayFactor);
+    float moonIntensity = World::moonIntensity * (1.0f - blend) * World::nightSunIntensity;
+
+    // Rotate direction through arc (avoids zero-vector at antipodal midpoint)
+    float effectiveAngle = sunAngle + (1.0f - blend) * PI;
+    World::lightDir   = Vector3Normalize({cosf(effectiveAngle), -sinf(effectiveAngle), -0.3f});
+    World::lightColor = V3Lerp(World::moonColor, World::currentSky.sunColor, blend);
+    World::lightIntensity = sunIntensity + moonIntensity;
 
     float h = World::skylightHeight;
     World::skylightColor     = V3Lerp(World::currentSky.horizon, World::currentSky.zenith, h);

@@ -121,11 +121,13 @@ void main()
             if (dot(N, look) < 0.0) N = -N;
         }
 
-        // ── Lighting (matches existing billboard style) ─────────────
+        // ── Lighting: radial mask + mix ──────────────────────────────
         vec3 L = normalize(-sunDir);
         float NdotL = dot(N, L);
         float diff  = NdotL * 0.5 + 0.5;
-        diff *= diff;
+
+        // Radial mask: tight falloff from sunlit side
+        float mask = smoothstep(0.0, 1.0, diff * diff);
 
         // Specular
         vec3  V     = normalize(cameraPos - fragWorldPos);
@@ -135,9 +137,14 @@ void main()
         float spec  = pow(NdotH, 2.0 / max(r4, 0.001) - 2.0);
         vec3  specC  = mix(vec3(0.04), albedo, metallic);
 
-        vec3 color = albedo * (sunColor * diff * 0.2 + ambientColor * 0.3)
-                   + specC * sunColor * spec * 0.3;
+        // Mix ambient base with sunlit color via radial mask
+        vec3 ambient = albedo * (ambientColor * 0.3);
+        vec3 sunlit  = albedo * sunColor * 0.5 + specC * sunColor * spec * 0.3;
+        vec3 color   = mix(ambient, sunlit, mask);
 
+        // ── Bottom darken ────────────────────────────────────────────
+        float bottomFade = smoothstep(0.0, -1.0, p.y);
+        color = mix(color, vec3(0.02), bottomFade);
 
         // ── Fog ─────────────────────────────────────────────────────
         color = mix(color, fragFogColor, fragFog);
@@ -164,9 +171,15 @@ void main()
         vec3 L = normalize(-sunDir);
         float NdotL = dot(N, L);
         float diff  = NdotL * 0.5 + 0.5;
-        diff *= diff;
 
-        vec3 color = albedo * (ambientColor*0.5)*(sunColor * diff * 0.5);
+        // Radial mask: tight falloff from sunlit side
+        float mask = smoothstep(0.0, 1.0, diff * diff);
+
+        // Mix ambient base with sunlit color via radial mask
+        vec3 ambient = albedo * (ambientColor * 0.3);
+        vec3 sunlit  = albedo * sunColor * 0.5;
+        vec3 color   = mix(ambient, sunlit, mask);
+
         color = mix(color, fragFogColor, fragFog);
 
         finalColor = vec4(color, 0.0);

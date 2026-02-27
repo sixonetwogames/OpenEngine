@@ -80,6 +80,7 @@ static LevelDef::BillboardEntry ParseBillboard(const json& j) {
     b.normalStrength = j.value("normalStrength", 0.0f);
     b.spherical      = j.value("spherical", false);
     b.sphereSpeed    = j.value("sphereSpeed", 0.4f);
+    b.collision      = j.value("collision", false);
 
     if (j.contains("size")) b.size = ParseVec2(j["size"]);
 
@@ -212,7 +213,7 @@ void Level::Load(CollisionSystem& collision,
     pbr.Apply(floorModel);
 
     SpawnGeometry(collision, def);
-    SpawnBillboards(def);
+    SpawnBillboards(collision, def);
 }
 
 void Level::Unload() {
@@ -262,7 +263,7 @@ void Level::SpawnGeometry(CollisionSystem& collision, const LevelDef& def) {
 
 // ── Billboard spawning from level def ───────────────────────────────────────
 
-void Level::SpawnBillboards(const LevelDef& def) {
+void Level::SpawnBillboards(CollisionSystem& collision, const LevelDef& def) {
     TraceLog(LOG_INFO, "BILLBOARD: %d billboard defs in level", (int)def.billboards.size());
 
     for (const auto& entry : def.billboards) {
@@ -294,6 +295,19 @@ void Level::SpawnBillboards(const LevelDef& def) {
         for (size_t i = 0; i < entry.positions.size(); i++) {
             float scale = (i < entry.scales.size()) ? entry.scales[i] : 1.0f;
             billboards.Spawn({ idx, entry.positions[i], scale });
+
+            // Register collision
+            if (entry.collision) {
+                if (entry.spherical) {
+                    float r = fminf(entry.size.x, entry.size.y) * 0.5f * scale;
+                    collision.AddSphere(entry.positions[i], r);
+                } else {
+                    Vector3 half = { entry.size.x * 0.5f * scale,
+                                     entry.size.y * 0.5f * scale,
+                                     entry.size.x * 0.5f * scale };
+                    collision.AddAABB(entry.positions[i], half);
+                }
+            }
         }
 
         TraceLog(LOG_INFO, "BILLBOARD: Spawned %d instances of '%s' (total: %d)",

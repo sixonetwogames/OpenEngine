@@ -76,6 +76,7 @@
       "size": [2.0, 2.0],
       "spherical": true,
       "sphereSpeed": 0.0,
+      "collision": true,
       "roughness": 0.2,
       "metallic": 0.0,
       "normalStrength": 0.0,
@@ -84,14 +85,29 @@
       ]
     },
     {
+      "name": "sphere_small2",
+      "texture": "assets/textures/procedural/sphere_D.png",
+      "size": [2.0, 2.0],
+      "spherical": true,
+      "sphereSpeed": 0.3,
+      "collision": true,
+      "roughness": 0.4,
+      "metallic": 0.0,
+      "normalStrength": 0.0,
+      "instances": [
+        [4.0, 7.5, -2.0]
+      ]
+    },
+    {
       "name": "sphere_large",
       "texture": "assets/textures/procedural/sphere_D.png",
       "size": [10.0, 10.0],
       "spherical": true,
       "sphereSpeed": 0.0,
+      "collision": true,
       "roughness": 0.2,
       "metallic": 0.0,
-      "normalStrength": 0.0,
+      "normalStrength": 1.0,
       "instances": [
         [35.0, 8.0, -35.0]
       ]

@@ -72,7 +72,7 @@ namespace World {
     // PBR lighting intensity (fed to shader as multipliers)
     inline float         sunPeakIntensity     = 5.0f;   // direct sun at noon
     inline float         skylightPeakIntensity= 6.0f;   // ambient skylight at noon
-    inline float         nightSunIntensity    = 0.5f;  // moonlight direct
+    inline float         nightSunIntensity    = 1.0f;  // moonlight direct
     inline float         nightSkylightIntensity= 5.0f;  // ambient at night
 
 

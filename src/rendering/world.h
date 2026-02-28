@@ -23,32 +23,43 @@ namespace World {
     // Fog (unified — feeds both post-process AND sky shader)
     // -----------------------------------------------------------------------
     inline bool          fogEnabled     = true;
-    inline float         fogDensity     = 0.05f;  // exponential density for post-process
-    inline float         fogSkyAmount   = 0.85f;    // linear blend (0-1) for sky shader fog band
-    inline float         fogStart       = 0.0f;   // fog-free zone (meters)
-    inline float         fogMaxDist     = 50.0f;  // fully opaque beyond this
-    inline float         fogHeightFade  = 35.0f;    // fade range above fogZHeight (meters)
-    inline float         fogZHeight     = 5.0f;     // world Y below which fog is full
-    inline float         fogDitherBlend = 0.0f;     // bayer dither at edges (0-1)
-    inline float         fogGroundBlend = 1.0f;     // how much sky ground color tints fog
-    inline float         fogNear        = 0.1f;     // camera near plane
-    inline float         fogFar         = 550.0f;  // camera far plane
-    inline float         fogHeight      = 0.6f;     // sky shader fog height band
+    inline float         fogDensity     = 0.1f;
+    inline float         fogSkyAmount   = 0.9f;
+    inline float         fogStart       = 8.0f;
+    inline float         fogMaxDist     = 100.0f;
+    inline float         fogHeightFade  = 35.0f;
+    inline float         fogZHeight     = 5.0f;
+    inline float         fogDitherBlend = 0.0f;
+    inline float         fogGroundBlend = 1.0f;
+    inline float         fogNear        = 0.1f;
+    inline float         fogFar         = 550.0f;
+    inline float         fogHeight      = 0.6f;
     inline Color         fogColor       = {140, 142, 148, 255};
     inline Color         fogBaseColor   = {140, 142, 148, 255};
     inline float         fogSkyTint     = 0.55f;
 
     // Fog noise — procedural wisps
-    inline float         fogNoiseScale    = 0.02f;  // world-space frequency of noise
-    inline float         fogNoiseStrength = 0.4f;    // 0 = solid fog, 1 = fully broken up
-    inline float         fogWindSpeed     = 0.1f;    // world units/sec noise scrolls
-    inline Vector2       fogWindDir       = {1.0f, 0.3f}; // xz direction (auto-normalized)
+    inline float         fogNoiseScale    = 0.02f;
+    inline float         fogNoiseStrength = 0.2f; //how broken the fog is
+    inline float         fogWindSpeed     = 0.1f;
+    inline Vector2       fogWindDir       = {1.0f, 0.3f};
+
+    // -----------------------------------------------------------------------
+    // Sun disc & halo
+    // -----------------------------------------------------------------------
+    inline float         sunDiskSize          = 128.0f;
+    inline float         sunDiskIntensity     = 1.0f;
+    inline float         sunHaloSize          = 16.0f;
+    inline float         sunHaloIntensity     = 0.4f;
+    inline float         sunHaloMix           = 0.35f;
+    inline float         sunScatterSize       = 4.0f;
+    inline float         sunScatterIntensity  = 0.1f;
 
     // -----------------------------------------------------------------------
     // Shadows
     // -----------------------------------------------------------------------
     inline float         shadowOpacity   = 0.65f;
-    inline float         shadowSunOffset = 0.3f;
+    inline float         shadowSunOffset = 0.4f;
     inline float         shadowSizeScale = 2.5f;
     inline float         shadowMaxStretch= 2.0f;
     inline bool          shadowEnabled   = true;
@@ -58,8 +69,8 @@ namespace World {
     // Day cycle
     // -----------------------------------------------------------------------
     inline float         dayLengthSec     = 600.0f;
-    inline float         timeScale        = 10.0f;
-    inline float         startDayProgress = 0.0f;
+    inline float         timeScale        = 5.0f;
+    inline float         startDayProgress = 0.2f;
 
     inline float         dawnWidth        = 0.1f;
     inline float         duskWidth        = 0.1f;
@@ -69,13 +80,31 @@ namespace World {
     inline float         sunFadeStart     = 0.03f;
     inline float         sunFadeEnd       = 0.0f;
 
-    // PBR lighting intensity (fed to shader as multipliers)
-    inline float         sunPeakIntensity     = 5.0f;   // direct sun at noon
-    inline float         skylightPeakIntensity= 6.0f;   // ambient skylight at noon
-    inline float         nightSunIntensity    = 1.0f;  // moonlight direct
-    inline float         nightSkylightIntensity= 5.0f;  // ambient at night
+    inline float         sunPeakIntensity     = 5.0f;
+    inline float         skylightPeakIntensity= 6.0f;
+    inline float         nightSunIntensity    = 1.0f;
+    inline float         nightSkylightIntensity= 5.0f;
 
-
+    // -----------------------------------------------------------------------
+    // Cloud texture (channel-packed fake 3D, 128x128)
+    // -----------------------------------------------------------------------
+    //   R = low-freq density (base shape)
+    //   G = mid-freq detail
+    //   B = coverage / type mask
+    //   A = erosion edge noise (breaks up silhouettes)
+    //
+    inline const char*   cloudTexturePath     = "assets/textures/procedural/clouds.png";
+    inline float         cloudScale           = 0.1f;
+    inline float         cloudSpeed           = 0.01f;
+    inline float         cloudDetailScale     = 2.0f;
+    inline float         cloudDetailSpeedRatio= 1.5f;
+    inline float         cloudCoverageScale   = 0.5f;
+    inline float         cloudCoverageSpeed   = 0.005f;
+    inline float         cloudDensityThreshold= 0.3f;
+    inline float         cloudDensitySmooth   = 0.3f;
+    inline float         cloudErosionStrength = 0.4f;
+    inline float         cloudHeightFade      = 0.2f;
+    inline Vector2       cloudWindDir         = {1.0f, 0.0f};
 
     // -----------------------------------------------------------------------
     // Sky sphere geometry
@@ -85,22 +114,18 @@ namespace World {
     inline constexpr int   SKY_SPHERE_SLICES = 16;
 
     // -----------------------------------------------------------------------
-    // Asset paths
-    // -----------------------------------------------------------------------
-
-    // -----------------------------------------------------------------------
     // Read-only computed state (written by Update)
     // -----------------------------------------------------------------------
     inline float         dayProgress  = 0.0f;
     inline float         worldTime    = 0.0f;
     inline SkyPreset     currentSky   = {};
-    //inline float fogHeight = 0.0f
+
     // -----------------------------------------------------------------------
     // Weather (runtime-driven)
     // -----------------------------------------------------------------------
     inline float         rainAmount    = 0.0f;
-    inline float         windStrength  = 1.0f;
-    inline Vector3 windDirection = {1.0f,0.5f,0.2f}; //X,Y, freq
+    inline float         windStrength  = 0.5f;
+    inline Vector3       windDirection = {1.0f, 0.5f, 0.2f};
 
     // Lighting (computed by Update)
     inline Vector3       lightDir         = {};
@@ -126,7 +151,6 @@ namespace World {
     void SetDayProgress(float t);
     void SetPreset(int index, const SkyPreset& preset);
 
-    // CPU-side fog culling
     inline bool IsFogCulled(Vector3 camPos, Vector3 objPos, float objRadius = 0.0f) {
         if (!fogEnabled) return false;
         float dist = Vector3Distance(camPos, objPos) - objRadius;

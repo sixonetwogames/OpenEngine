@@ -7,9 +7,12 @@
 // Internal state (file-scope, not exposed in header)
 // ---------------------------------------------------------------------------
 namespace {
-    Model  skyModel  = {};
-    Shader skyShader = {};
+    Model     skyModel   = {};
+    Shader    skyShader  = {};
+    Texture2D cloudTex   = {};
+    int       cloudTexSlot = 1; // texture unit for cloud sampler
 
+    // --- Uniform locations ---
     int timeLoc         = -1;
     int viewPosLoc      = -1;
     int sunDirLoc       = -1;
@@ -19,12 +22,37 @@ namespace {
     int skyHorizonLoc   = -1;
     int skyGroundLoc    = -1;
     int cloudOpacityLoc = -1;
-    int fogColorLoc_sky   = -1;
-    int fogAmountLoc_sky  = -1;
-    int fogHeightLoc_sky  = -1;
+
+    // Fog
+    int fogColorLoc_sky         = -1;
+    int fogAmountLoc_sky        = -1;
+    int fogHeightLoc_sky        = -1;
     int fogNoiseScaleLoc_sky    = -1;
     int fogNoiseStrengthLoc_sky = -1;
     int fogWindOffsetLoc_sky    = -1;
+
+    // Sun disc & halo
+    int sunDiskSizeLoc          = -1;
+    int sunDiskIntensityLoc     = -1;
+    int sunHaloSizeLoc          = -1;
+    int sunHaloIntensityLoc     = -1;
+    int sunHaloMixLoc           = -1;
+    int sunScatterSizeLoc       = -1;
+    int sunScatterIntensityLoc  = -1;
+
+    // Cloud texture params
+    int cloudTexLoc             = -1;
+    int cloudScaleLoc           = -1;
+    int cloudSpeedLoc           = -1;
+    int cloudDetailScaleLoc     = -1;
+    int cloudDetailSpeedRatioLoc= -1;
+    int cloudCoverageScaleLoc   = -1;
+    int cloudCoverageSpeedLoc   = -1;
+    int cloudDensityThresholdLoc= -1;
+    int cloudDensitySmoothLoc   = -1;
+    int cloudErosionStrengthLoc = -1;
+    int cloudHeightFadeLoc      = -1;
+    int cloudWindDirLoc         = -1;
 
     SkyPreset presets[5] = {};
 
@@ -41,12 +69,12 @@ static void InitDefaultPresets() {
     presets[0] = { // Night
         .zenith = {0.07f, 0.09f, 0.3f}, .horizon = {0.21f, 0.24f, 0.62f},
         .ground = {0.01f, 0.01f, 0.03f}, .sunColor = {0.3f, 0.3f, 0.5f},
-        .sunIntensity = 0.0f, .cloudOpacity = 0.15f,
+        .sunIntensity = 0.0f, .cloudOpacity = 0.7f,
     };
     presets[1] = { // Dawn
         .zenith = {0.15f, 0.15f, 0.35f}, .horizon = {0.85f, 0.45f, 0.25f},
         .ground = {0.12f, 0.10f, 0.08f}, .sunColor = {1.0f, 0.6f, 0.3f},
-        .sunIntensity = 0.8f, .cloudOpacity = 0.5f,
+        .sunIntensity = 0.4f, .cloudOpacity = 0.9f,
     };
     presets[2] = { // Day
         .zenith = {0.15f, 0.25f, 0.55f}, .horizon = {0.60f, 0.70f, 0.85f},
@@ -56,12 +84,12 @@ static void InitDefaultPresets() {
     presets[3] = { // Sunset
         .zenith = {0.12f, 0.10f, 0.30f}, .horizon = {0.90f, 0.35f, 0.15f},
         .ground = {0.10f, 0.08f, 0.06f}, .sunColor = {1.0f, 0.5f, 0.2f},
-        .sunIntensity = 0.7f, .cloudOpacity = 0.55f,
+        .sunIntensity = 0.4f, .cloudOpacity = 0.9f,
     };
-    presets[4] = { // Night
+    presets[4] = { // Night (wrap)
         .zenith = {0.07f, 0.09f, 0.3f}, .horizon = {0.21f, 0.24f, 0.62f},
         .ground = {0.01f, 0.01f, 0.03f}, .sunColor = {0.3f, 0.3f, 0.5f},
-        .sunIntensity = 0.0f, .cloudOpacity = 0.15f,
+        .sunIntensity = 0.0f, .cloudOpacity = 0.7f,
     };
 }
 
@@ -104,21 +132,16 @@ static void ComputeLighting(float t) {
     float sunAngle = (t - 0.25f) * PI * 2.0f;
     float sunElev = sinf(sunAngle);
 
-    Vector3 sunDir = Vector3Normalize({cosf(sunAngle), -sinf(sunAngle), -0.3f});
-
-    // Smooth crossfade band around horizon (±0.15 elevation)
     float blend = Clamp01((sunElev + 0.15f) / 0.3f);
-    blend = blend * blend * (3.0f - 2.0f * blend); // smoothstep
+    blend = blend * blend * (3.0f - 2.0f * blend);
 
-    // Sun elevation drives intensity lerp
     float dayFactor = Clamp01(sunElev / 0.5f);
-    dayFactor = dayFactor * dayFactor * (3.0f - 2.0f * dayFactor); // smoothstep
+    dayFactor = dayFactor * dayFactor * (3.0f - 2.0f * dayFactor);
 
     float sunIntensity  = World::currentSky.sunIntensity * blend *
                           (World::nightSunIntensity + (World::sunPeakIntensity - World::nightSunIntensity) * dayFactor);
     float moonIntensity = World::moonIntensity * (1.0f - blend) * World::nightSunIntensity;
 
-    // Rotate direction through arc (avoids zero-vector at antipodal midpoint)
     float effectiveAngle = sunAngle + (1.0f - blend) * PI;
     World::lightDir   = Vector3Normalize({cosf(effectiveAngle), -sinf(effectiveAngle), -0.3f});
     World::lightColor = V3Lerp(World::moonColor, World::currentSky.sunColor, blend);
@@ -137,22 +160,18 @@ static void ComputeFogColor() {
     const SkyPreset& sky = World::currentSky;
     const Vector3& skylight = World::skylightColor;
 
-    // Start from stable base
     Vector3 base = {
         World::fogBaseColor.r / 255.0f,
         World::fogBaseColor.g / 255.0f,
         World::fogBaseColor.b / 255.0f
     };
 
-    // Blend in sky ground hemisphere color
     base = V3Lerp(base, sky.ground, World::fogGroundBlend);
 
-    // Tint by skylight
     base.x += skylight.x * World::fogSkyTint;
     base.y += skylight.y * World::fogSkyTint;
     base.z += skylight.z * World::fogSkyTint;
 
-    // Day/night brightness: darker at night, lighter during day
     float dayBright = 0.3f + 0.7f * sky.sunIntensity;
     base.x *= dayBright;
     base.y *= dayBright;
@@ -167,35 +186,78 @@ static void ComputeFogColor() {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: cache a shader uniform location
+// ---------------------------------------------------------------------------
+static int Loc(Shader s, const char* name) {
+    return GetShaderLocation(s, name);
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 void World::Init() {
     InitDefaultPresets();
     dayProgress = startDayProgress;
 
+    // Sky sphere
     Mesh mesh = GenMeshSphere(SKY_SPHERE_RADIUS, SKY_SPHERE_RINGS, SKY_SPHERE_SLICES);
     skyModel  = LoadModelFromMesh(mesh);
     skyShader = LoadPlatformShader("sky");
     skyModel.materials[0].shader = skyShader;
 
-    timeLoc         = GetShaderLocation(skyShader, "time");
-    viewPosLoc      = GetShaderLocation(skyShader, "viewPos");
-    sunDirLoc       = GetShaderLocation(skyShader, "sunDir");
-    sunColorLoc     = GetShaderLocation(skyShader, "sunColor");
-    sunIntensityLoc = GetShaderLocation(skyShader, "sunIntensity");
-    skyZenithLoc    = GetShaderLocation(skyShader, "skyZenith");
-    skyHorizonLoc   = GetShaderLocation(skyShader, "skyHorizon");
-    skyGroundLoc    = GetShaderLocation(skyShader, "skyGround");
-    cloudOpacityLoc = GetShaderLocation(skyShader, "cloudOpacity");
-    fogColorLoc_sky  = GetShaderLocation(skyShader, "fogColor");
-    fogAmountLoc_sky = GetShaderLocation(skyShader, "fogAmount");
-    fogHeightLoc_sky = GetShaderLocation(skyShader, "fogHeight");
-    fogNoiseScaleLoc_sky    = GetShaderLocation(skyShader, "fogNoiseScale");
-    fogNoiseStrengthLoc_sky = GetShaderLocation(skyShader, "fogNoiseStrength");
-    fogWindOffsetLoc_sky    = GetShaderLocation(skyShader, "fogWindOffset");
+    // Cloud texture (RGBA channel-packed)
+    cloudTex = LoadTexture(cloudTexturePath);
+    SetTextureFilter(cloudTex, TEXTURE_FILTER_BILINEAR);
+    SetTextureWrap(cloudTex, TEXTURE_WRAP_REPEAT);
+
+    // --- Cache all uniform locations ---
+    timeLoc         = Loc(skyShader, "time");
+    viewPosLoc      = Loc(skyShader, "viewPos");
+    sunDirLoc       = Loc(skyShader, "sunDir");
+    sunColorLoc     = Loc(skyShader, "sunColor");
+    sunIntensityLoc = Loc(skyShader, "sunIntensity");
+    skyZenithLoc    = Loc(skyShader, "skyZenith");
+    skyHorizonLoc   = Loc(skyShader, "skyHorizon");
+    skyGroundLoc    = Loc(skyShader, "skyGround");
+    cloudOpacityLoc = Loc(skyShader, "cloudOpacity");
+
+    // Fog
+    fogColorLoc_sky         = Loc(skyShader, "fogColor");
+    fogAmountLoc_sky        = Loc(skyShader, "fogAmount");
+    fogHeightLoc_sky        = Loc(skyShader, "fogHeight");
+    fogNoiseScaleLoc_sky    = Loc(skyShader, "fogNoiseScale");
+    fogNoiseStrengthLoc_sky = Loc(skyShader, "fogNoiseStrength");
+    fogWindOffsetLoc_sky    = Loc(skyShader, "fogWindOffset");
+
+    // Sun disc & halo
+    sunDiskSizeLoc          = Loc(skyShader, "sunDiskSize");
+    sunDiskIntensityLoc     = Loc(skyShader, "sunDiskIntensity");
+    sunHaloSizeLoc          = Loc(skyShader, "sunHaloSize");
+    sunHaloIntensityLoc     = Loc(skyShader, "sunHaloIntensity");
+    sunHaloMixLoc           = Loc(skyShader, "sunHaloMix");
+    sunScatterSizeLoc       = Loc(skyShader, "sunScatterSize");
+    sunScatterIntensityLoc  = Loc(skyShader, "sunScatterIntensity");
+
+    // Cloud texture params
+    cloudTexLoc              = Loc(skyShader, "cloudTex");
+    cloudScaleLoc            = Loc(skyShader, "cloudScale");
+    cloudSpeedLoc            = Loc(skyShader, "cloudSpeed");
+    cloudDetailScaleLoc      = Loc(skyShader, "cloudDetailScale");
+    cloudDetailSpeedRatioLoc = Loc(skyShader, "cloudDetailSpeedRatio");
+    cloudCoverageScaleLoc    = Loc(skyShader, "cloudCoverageScale");
+    cloudCoverageSpeedLoc    = Loc(skyShader, "cloudCoverageSpeed");
+    cloudDensityThresholdLoc = Loc(skyShader, "cloudDensityThreshold");
+    cloudDensitySmoothLoc    = Loc(skyShader, "cloudDensitySmooth");
+    cloudErosionStrengthLoc  = Loc(skyShader, "cloudErosionStrength");
+    cloudHeightFadeLoc       = Loc(skyShader, "cloudHeightFade");
+    cloudWindDirLoc          = Loc(skyShader, "cloudWindDir");
+
+    // Bind cloud texture sampler to its slot (one-time)
+    SetShaderValue(skyShader, cloudTexLoc, &cloudTexSlot, SHADER_UNIFORM_INT);
 }
 
 void World::Unload() {
+    UnloadTexture(cloudTex);
     UnloadShader(skyShader);
     UnloadModel(skyModel);
 }
@@ -213,9 +275,9 @@ void World::Update(Camera camera) {
     ComputeLighting(dayProgress);
     ComputeFogColor();
 
-    // Sky shader uniforms
+    // --- Sky shader uniforms ---
     float sunAngle = (dayProgress - 0.25f) * PI * 2.0f;
-    Vector3 skyShaderSunDir = Vector3Normalize({cosf(sunAngle), -sinf(sunAngle), -0.3});
+    Vector3 skyShaderSunDir = Vector3Normalize({cosf(sunAngle), -sinf(sunAngle), -0.3f});
 
     SetShaderValue(skyShader, timeLoc,         &worldTime,               SHADER_UNIFORM_FLOAT);
     SetShaderValue(skyShader, sunDirLoc,       &skyShaderSunDir,         SHADER_UNIFORM_VEC3);
@@ -229,12 +291,39 @@ void World::Update(Camera camera) {
     Vector3 pos = camera.position;
     SetShaderValue(skyShader, viewPosLoc, &pos, SHADER_UNIFORM_VEC3);
 
-    // Store camera state for post-process world reconstruction
+    // Camera state for post-process
     cameraPos   = pos;
     cameraFwd   = Vector3Normalize(Vector3Subtract(camera.target, camera.position));
     cameraRight = Vector3Normalize(Vector3CrossProduct(cameraFwd, camera.up));
     cameraUp    = Vector3CrossProduct(cameraRight, cameraFwd);
     cameraFov   = camera.fovy;
+
+    // Sun disc & halo
+    SetShaderValue(skyShader, sunDiskSizeLoc,         &sunDiskSize,         SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, sunDiskIntensityLoc,    &sunDiskIntensity,    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, sunHaloSizeLoc,         &sunHaloSize,         SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, sunHaloIntensityLoc,    &sunHaloIntensity,    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, sunHaloMixLoc,          &sunHaloMix,          SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, sunScatterSizeLoc,      &sunScatterSize,      SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, sunScatterIntensityLoc, &sunScatterIntensity, SHADER_UNIFORM_FLOAT);
+
+    // Cloud texture params
+    SetShaderValue(skyShader, cloudScaleLoc,            &cloudScale,            SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudSpeedLoc,            &cloudSpeed,            SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudDetailScaleLoc,      &cloudDetailScale,      SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudDetailSpeedRatioLoc, &cloudDetailSpeedRatio, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudCoverageScaleLoc,    &cloudCoverageScale,    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudCoverageSpeedLoc,    &cloudCoverageSpeed,    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudDensityThresholdLoc, &cloudDensityThreshold, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudDensitySmoothLoc,    &cloudDensitySmooth,    SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudErosionStrengthLoc,  &cloudErosionStrength,  SHADER_UNIFORM_FLOAT);
+    SetShaderValue(skyShader, cloudHeightFadeLoc,       &cloudHeightFade,       SHADER_UNIFORM_FLOAT);
+
+    // Normalize and upload cloud wind direction
+    float cwLen = sqrtf(cloudWindDir.x * cloudWindDir.x + cloudWindDir.y * cloudWindDir.y);
+    float cwN[2] = {0.0f, 0.0f};
+    if (cwLen > 0.001f) { cwN[0] = cloudWindDir.x / cwLen; cwN[1] = cloudWindDir.y / cwLen; }
+    SetShaderValue(skyShader, cloudWindDirLoc, cwN, SHADER_UNIFORM_VEC2);
 
     // Fog → sky shader
     float fogCol[3] = { fogColor.r/255.0f, fogColor.g/255.0f, fogColor.b/255.0f };
@@ -246,10 +335,10 @@ void World::Update(Camera camera) {
     SetShaderValue(skyShader, fogNoiseScaleLoc_sky,    &fogNoiseScale,    SHADER_UNIFORM_FLOAT);
     SetShaderValue(skyShader, fogNoiseStrengthLoc_sky, &fogNoiseStrength, SHADER_UNIFORM_FLOAT);
     float wLen = sqrtf(fogWindDir.x * fogWindDir.x + fogWindDir.y * fogWindDir.y);
-    float wN = (wLen > 0.001f) ? 1.0f / wLen : 0.0f;
+    float wNrm = (wLen > 0.001f) ? 1.0f / wLen : 0.0f;
     float windOff[2] = {
-        fogWindDir.x * wN * fogWindSpeed * worldTime,
-        fogWindDir.y * wN * fogWindSpeed * worldTime
+        fogWindDir.x * wNrm * fogWindSpeed * worldTime,
+        fogWindDir.y * wNrm * fogWindSpeed * worldTime
     };
     SetShaderValue(skyShader, fogWindOffsetLoc_sky, windOff, SHADER_UNIFORM_VEC2);
 }
@@ -257,7 +346,16 @@ void World::Update(Camera camera) {
 void World::DrawSky(Camera camera) {
     rlDisableBackfaceCulling();
     rlDisableDepthMask();
+
+        // Bind cloud texture to its slot before drawing
+        rlActiveTextureSlot(cloudTexSlot);
+        rlEnableTexture(cloudTex.id);
+
         DrawModel(skyModel, camera.position, 1.0f, WHITE);
+
+        rlActiveTextureSlot(cloudTexSlot);
+        rlDisableTexture();
+
     rlEnableDepthMask();
     rlEnableBackfaceCulling();
 }

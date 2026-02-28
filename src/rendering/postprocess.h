@@ -5,13 +5,13 @@
 
 struct DitherSettings {
     bool  enabled    = false;
-    float strength   = 0.3f;
-    float colorDepth = 8.0f;
+    float strength   = 0.8f;
+    float colorDepth = 4.0f;
 };
 
 struct BarrelSettings {
     bool  enabled  = false;
-    float strength = 0.05f;
+    float strength = 0.1f;
     float zoom     = 1.2f;
 };
 

@@ -21,7 +21,7 @@ inline constexpr bool  PIXEL_PERFECT    = true;   // nearest-neighbor if true
 // Player / Camera
 // ---------------------------------------------------------------------------
 inline constexpr float PLAYER_HEIGHT      = 2.0f;
-inline constexpr float PLAYER_SPEED       = 10.0f;
+inline constexpr float PLAYER_SPEED       = 13.0f;
 inline constexpr float PLAYER_SPRINT_MULT = 2.0f;
 inline constexpr float MOUSE_SENSITIVITY  = 0.002f;
 inline constexpr float FOV_DEFAULT        = 90.0f;
@@ -30,15 +30,15 @@ inline constexpr float FOV_DEFAULT        = 90.0f;
 // Player body
 // ---------------------------------------------------------------------------
 inline constexpr float STAND_HEIGHT    = 2.0f;
-inline constexpr float CROUCH_HEIGHT   = 0.5f;
-inline constexpr float BOTTOM_HEIGHT   = 0.45f;
+inline constexpr float CROUCH_HEIGHT   = 0.8f;
+inline constexpr float BOTTOM_HEIGHT   = 0.75f;
 inline constexpr float GRAVITY         = 20.0f;
-inline constexpr float JUMP_FORCE      = 10.0f;
+inline constexpr float JUMP_FORCE      = 15.0f;
 inline constexpr float MAX_SPEED       = 10.0f;
-inline constexpr float CROUCH_SPEED    = 3.5f;
+inline constexpr float CROUCH_SPEED    = 2.5f;
 inline constexpr float MAX_ACCEL       = 100.0f;
 inline constexpr float FRICTION        = 0.85f;
-inline constexpr float AIR_DRAG        = 0.8f;
+inline constexpr float AIR_DRAG        = 0.9f;
 inline constexpr float CONTROL_RESP    = 15.0f;
 inline constexpr float MAX_SLOPE_ANGLE = 45.0f;   // degrees — steeper surfaces block movement
 
@@ -72,7 +72,7 @@ inline constexpr float IDLE_BOB_ROLL    = 0.008f;
 // ---------------------------------------------------------------------------
 // Camera lean
 // ---------------------------------------------------------------------------
-inline constexpr float LEAN_SIDE_MAX  = 0.02f;
+inline constexpr float LEAN_SIDE_MAX  = 0.05f;
 inline constexpr float LEAN_FWD_MAX   = 0.015f;
 inline constexpr float LEAN_RATE      = 10.0f;
 

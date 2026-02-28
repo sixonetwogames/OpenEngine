@@ -116,7 +116,7 @@ void main() {
     vec3 V  = normalize(viewPos - fragPosition);
     vec3 F0 = mix(vec3(0.04), albedo.rgb, metal);
 
-    vec3 L = normalize(-lightDir);
+    vec3 L = normalize(lightDir);
     vec3 H = normalize(V + L);
 
     float NDF = DistributionGGX(N, H, rough);
@@ -136,7 +136,6 @@ void main() {
     vec3 color = ambient + Lo;
 
     // --- Tone mapping (ACES approximation) ---
-    color = color * (2.51 * color + 0.03) / (color * (2.43 * color + 0.59) + 0.14);
     color = clamp(color, 0.0, 1.0);
 
     // --- Fog depth packing ---

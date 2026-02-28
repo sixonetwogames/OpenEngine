@@ -155,8 +155,8 @@ void PostProcess::End() {
                        World::fogWindDir.y * World::fogWindDir.y);
     float wNorm = (wLen > 0.001f) ? 1.0f / wLen : 0.0f;
     float windOff[2] = {
-        World::fogWindDir.x * wNorm * World::fogWindSpeed * World::worldTime,
-        World::fogWindDir.y * wNorm * World::fogWindSpeed * World::worldTime
+        World::windDirection.x * wNorm * World::fogWindSpeed * World::worldTime,
+        World::windDirection.y * wNorm * World::fogWindSpeed * World::worldTime
     };
     SetShaderValue(s, fogWindOffsetLoc, windOff, SHADER_UNIFORM_VEC2);
 

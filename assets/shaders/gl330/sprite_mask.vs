@@ -67,7 +67,7 @@ void main()
                       + camRight * vertexPosition.x * billboardSize.x
                       + camUp    * heightFactor * billboardSize.y;
 
-        if (windEnabled != 0) {
+        if (windEnabled != 1) {
             float freq  = windDirection.z;
             float phase = dot(billboardPos, vec3(7.31, 0.0, 13.57));
             float sway  = sin(time * freq + phase) * wind * 1.0 * heightFactor * heightFactor;

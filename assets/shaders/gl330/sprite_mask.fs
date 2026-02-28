@@ -30,56 +30,33 @@ uniform float time;
 
 out vec4 finalColor;
 
-// ─── Procedural noise ───────────────────────────────────────────────────────
+const float PI = 3.141;
 
-float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+float luminance(vec3 c) {
+    return dot(c, vec3(0.299, 0.587, 0.114));
 }
-
-float vnoise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i),              hash(i + vec2(1.0, 0.0)), f.x),
-               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-
-float fbm(vec2 p, int octaves) {
-    float v = 0.0, a = 0.5;
-    mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
-    for (int i = 0; i < 4; i++) {
-        if (i >= octaves) break;
-        v += a * vnoise(p);
-        p = rot * p * 2.0;
-        a *= 0.5;
-    }
-    return v;
-}
-
-// ─── Sphere rendering ───────────────────────────────────────────────────────
-
-const float PI = 3.14159265;
 
 void main()
 {
     if (spherical == 1) {
         // ── Disc → sphere mapping ───────────────────────────────────
-        vec2 p = fragLocalCoord * 2.0;           // -1..1
+        vec2 p = fragLocalCoord * 2.0;
         float r2 = dot(p, p);
         if (r2 > 1.0) discard;
 
         float z = sqrt(1.0 - r2);
-        vec3 sphereNorm = vec3(p.x, p.y, z);     // local-space sphere normal
+        vec3 sphereNorm = vec3(p.x, p.y, z);
 
-        // ── Transform to world space, then project UVs ───────────
+        // ── Camera basis ─────────────────────────────────────────────
         vec3 look     = normalize(cameraPos - billboardPos);
         vec3 camRight = normalize(cross(vec3(0.0, 1.0, 0.0), look));
         vec3 camUp    = cross(look, camRight);
 
-        // World-space point on sphere surface
         vec3 worldPt = sphereNorm.x * camRight + sphereNorm.y * camUp + sphereNorm.z * look;
 
-        // Time-based rotation around world Y axis
+        // Time-based Y rotation
         float angle = time * sphereSpeed;
         float ca = cos(angle), sa = sin(angle);
         vec3 rotPt = vec3(
@@ -88,65 +65,61 @@ void main()
            -worldPt.x * sa + worldPt.z * ca
         );
 
-        // ── Spherical UV from world-space rotated point ───────────
+        // ── Spherical UV ─────────────────────────────────────────────
         float u = atan(rotPt.x, rotPt.z) / (2.0 * PI) + 0.5;
         float v = asin(clamp(rotPt.y, -1.0, 1.0)) / PI + 0.5;
         vec2 sphereUV = vec2(u, v);
 
-        // ── Noise perturbation for surface detail ───────────────────
-        float n  = fbm(sphereUV * 8.0 + vec2(time * 0.02, 0.0), 4);
-        float n2 = fbm(sphereUV * 16.0, 3);
-        sphereUV += vec2(n - 0.5, n2 - 0.5) * 0.03;
-
         vec4 texel = texture(texture0, sphereUV);
         vec3 albedo = texel.rgb * tintColor.rgb;
 
-        // Noise-based surface variation
-        float detail = fbm(sphereUV * 12.0 + vec2(0.0, time * 0.01), 3);
-        albedo *= 0.85 + 0.3 * detail;
+        // ── Roughness from inverted texture luminance ────────────────
+        float texLum = luminance(texel.rgb);
+        float rough  = clamp(1.0-texLum, 0.00, 1.0) * roughness;
 
-        // ── World-space normal (reuses basis vectors from UV projection) ──
+        // ── World-space normal ───────────────────────────────────────
+        // ── Sphere tangent basis (longitude/latitude) ──────────────
         vec3 N = normalize(sphereNorm.x * camRight + sphereNorm.y * camUp + sphereNorm.z * look);
 
-        // ── Bump from noise ─────────────────────────────────────────
         if (normalStrength > 0.0) {
-            float eps = 0.01;
-            float nh  = fbm(sphereUV * 8.0, 3);
-            float nhx = fbm((sphereUV + vec2(eps, 0.0)) * 8.0, 3);
-            float nhy = fbm((sphereUV + vec2(0.0, eps)) * 8.0, 3);
-            vec3 bumpT = normalize(camRight + N * normalStrength * (nhx - nh) / eps);
-            vec3 bumpB = normalize(camUp    + N * normalStrength * (nhy - nh) / eps);
-            N = normalize(cross(bumpT, bumpB));
-            // Ensure normal faces camera
-            if (dot(N, look) < 0.0) N = -N;
+            float eps = 0.005;
+            float hc = luminance(texture(texture0, sphereUV).rgb);
+            float hx = luminance(texture(texture0, sphereUV + vec2(eps, 0.0)).rgb);
+            float hy = luminance(texture(texture0, sphereUV + vec2(0.0, eps)).rgb);
+
+            float dhdx = (hx - hc) / eps;
+            float dhdy = (hy - hc) / eps;
+
+            // Tangent/bitangent aligned to UV on the sphere surface
+            vec3 T = normalize(cross(vec3(0.0, 1.0, 0.0), N));
+            vec3 B = cross(N, T);
+
+            N = normalize(N - normalStrength * (dhdx * T + dhdy * B));
         }
 
-        // ── Lighting: radial mask + mix ──────────────────────────────
-        vec3 L = normalize(-sunDir);
-        float NdotL = dot(N, L);
-        float diff  = NdotL * 0.5 + 0.5;
+        // ── Lighting ────────────────────────────────────────────────
+        vec3 L    = normalize(-sunDir);
+        vec3 V    = normalize(cameraPos - billboardPos);
+        vec3 H    = normalize(L + V);
 
-        // Radial mask: tight falloff from sunlit side
-        float mask = smoothstep(0.0, 1.0, diff * diff);
-
-        // Specular
-        vec3  V     = normalize(cameraPos - fragWorldPos);
-        vec3  H     = normalize(L + V);
+        float NdotL = max(dot(N, L), 0.0);
         float NdotH = max(dot(N, H), 0.0);
-        float r4    = roughness * roughness * roughness * roughness;
-        float spec  = pow(NdotH, 2.0 / max(r4, 0.001) - 2.0);
-        vec3  specC  = mix(vec3(0.04), albedo, metallic);
+        float diff  = NdotL * 0.5 + 0.5;            // half-lambert for diffuse wrap
+        float mask  = smoothstep(0.0, 1.0, diff);    // removed the double-square
 
-        // Mix ambient base with sunlit color via radial mask
-        vec3 ambient = albedo * (ambientColor * 0.3);
-        vec3 sunlit  = albedo * sunColor * 0.5 + specC * sunColor * spec * 0.3;
-        vec3 color   = mix(ambient, sunlit, mask);
+        float r22   = rough * rough;
+        float spec = pow(NdotH, 2.0 / max(r22, 0.001));  // stronger exponent
+        vec3 specC = mix(vec3(0.04), albedo, metallic);
+
+        vec3 ambient = albedo * ambientColor * 0.2;
+        vec3 sunlit  = albedo * sunColor * 0.2 * NdotL
+                    + specC * sunColor * spec * 1.5;     // was 0.3, now visible
+        vec3 color   = ambient + sunlit;
 
         // ── Bottom darken ────────────────────────────────────────────
-        float bottomFade = smoothstep(0.0, -1.0, p.y);
-        color = mix(color, vec3(0.02), bottomFade);
+        color = mix(color, vec3(0.02), smoothstep(0.0, -1.0, p.y));
 
-        // ── Fog ─────────────────────────────────────────────────────
+        // ── Fog ──────────────────────────────────────────────────────
         color = mix(color, fragFogColor, fragFog);
 
         finalColor = vec4(color, 0.0);
@@ -156,7 +129,7 @@ void main()
         vec4 texel = texture(texture0, fragTexCoord);
         if (texel.a < alphaThreshold) discard;
 
-        vec3  albedo = texel.rgb * tintColor.rgb;
+        vec3 albedo = texel.rgb * tintColor.rgb;
 
         vec3 N = normalize(fragNormal);
         if (normalStrength > 0.0) {
@@ -168,19 +141,18 @@ void main()
             N = normalize(N + normalStrength * (-dldx * T - dldy * B));
         }
 
-        vec3 L = normalize(-sunDir);
-        float NdotL = dot(N, L);
-        float diff  = NdotL * 0.5 + 0.5;
-
-        // Radial mask: tight falloff from sunlit side
+        vec3  L    = normalize(-sunDir);
+        float diff = dot(N, L) * 0.5 + 0.5;
         float mask = smoothstep(0.0, 1.0, diff * diff);
 
-        // Mix ambient base with sunlit color via radial mask
-        vec3 ambient = albedo * (ambientColor * 0.3);
-        vec3 sunlit  = albedo * sunColor * 0.5;
+        vec3 ambient = albedo * (ambientColor * 0.1);
+        vec3 sunlit  = albedo * sunColor * 0.4;
         vec3 color   = mix(ambient, sunlit, mask);
 
-        color = mix(color, fragFogColor, fragFog);
+        float rayDist   = distance(cameraPos, billboardPos);
+        float exponent  = fragFog * max(rayDist, 0.0);
+        float fogFactor = 1.0 - exp(-exponent * exponent);
+        color = mix(color, fragFogColor, fogFactor);
 
         finalColor = vec4(color, 0.0);
     }

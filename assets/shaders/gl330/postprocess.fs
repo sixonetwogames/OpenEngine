@@ -105,35 +105,33 @@ void main() {
         float rayDist = linearDist / max(dot(rayDir, camFwd), 0.001);
         vec3 worldPos = camPos + rayDir * rayDist;
 
-        // Distance fog (exponential squared)
-        float fogDist = max(rayDist - fogStart, 0.0);
-        float exponent = fogDensity * fogDist;
-        float fogFactor = 1.0 - exp(-exponent * exponent);
-        fogFactor = mix(fogFactor, 1.0, step(fogMaxDist, linearDist));
+        if(rayDist > fogStart){
+            if(rayDist > fogFar){
+                color = fogColor;
+            }
+            else{
+                    // Distance fog (exponential squared)
+                float fogDist = max(rayDist - fogStart, 0.0);
+                float exponent = fogDensity * fogDist;
+                float fogFactor = 1.0 - exp(-exponent * exponent);
+                fogFactor = mix(fogFactor, 1.0, step(fogMaxDist, linearDist));
 
-        // Height fade: full below fogZHeight, fades over fogHeightFade range
-        float heightFactor = 1.0 - smoothstep(fogZHeight, fogZHeight + fogHeightFade, worldPos.y);
-        fogFactor *= heightFactor;
+                // Height fade: full below fogZHeight, fades over fogHeightFade range
+                float heightFactor = 1.0 - smoothstep(fogZHeight, fogZHeight + fogHeightFade, worldPos.y);
+                fogFactor *= heightFactor;
 
-        // Procedural noise wisps — pans with wind
-        if (fogNoiseStrength > 0.0 && rayDist <fogFar) {
-            vec2 noiseUV = worldPos.xz * fogNoiseScale + fogWindOffset;
-            float n = fbm(noiseUV);
-            float noiseMask = smoothstep(0.3 * fogNoiseStrength, 1.0 - 0.2 * fogNoiseStrength, n);
-            fogFactor *= mix(1.0, noiseMask, fogNoiseStrength);
+                // Procedural noise wisps — pans with wind
+                if (fogNoiseStrength > 0.0) {
+                    vec2 noiseUV = worldPos.xz * fogNoiseScale + fogWindOffset;
+                    float n = fbm(noiseUV);
+                    float noiseMask = smoothstep(0.3 * fogNoiseStrength, 1.0 - 0.2 * fogNoiseStrength, n);
+                    fogFactor *= mix(1.0, noiseMask, fogNoiseStrength);
+                }
+
+                vec3 fogClean    = mix(color, fogColor, fogFactor);
+                color = mix(color, fogClean, fogFactor);
+                }
         }
-
-        float fogFactorClean = fogFactor;
-
-        if (fogDitherBlend > 0.0) {
-            float n = fract(sin(dot(gl_FragCoord.xy + camPos.xz * 40.0, vec2(12.9898, 78.233))) * 13.79) - 0.5;
-            fogFactor = clamp(fogFactor + n * 0.15, 0.0, 1.0);
-        }
-        fogFactorClean = clamp(fogFactorClean, 0.0, 1.0);
-
-        vec3 fogClean    = mix(color, fogColor, fogFactorClean);
-        vec3 fogDithered = mix(color, fogColor, fogFactor);
-        color = mix(fogClean, fogDithered, fogDitherBlend);
     }
 
     if (ditherEnabled > 0) {
